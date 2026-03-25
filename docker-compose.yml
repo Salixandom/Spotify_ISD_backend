@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: spotifydb
+      POSTGRES_USER: spotifyuser
+      POSTGRES_PASSWORD: spotifypass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  traefik:
+    image: traefik:latest
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=spotify-collab_default"
+      - "--entrypoints.web.address=:80"
+      - "--api.insecure=true"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+    depends_on:
+      - auth
+      - playlist
+      - track
+      - search
+      - collaboration
+
+  auth:
+    build: ./services/auth
+    volumes:
+      - ./services/auth:/app
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./services/auth/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
+      - "traefik.http.services.auth.loadbalancer.server.port=8001"
+    depends_on:
+      - db
+
+  playlist:
+    build: ./services/playlist
+    volumes:
+      - ./services/playlist:/app
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./services/playlist/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.playlist.rule=PathPrefix(`/api/playlists`)"
+      - "traefik.http.services.playlist.loadbalancer.server.port=8002"
+    depends_on:
+      - db
+
+  track:
+    build: ./services/track
+    volumes:
+      - ./services/track:/app
+    ports:
+      - "8003:8003"
+    env_file:
+      - ./services/track/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.track.rule=PathPrefix(`/api/tracks`)"
+      - "traefik.http.services.track.loadbalancer.server.port=8003"
+    depends_on:
+      - db
+
+  search:
+    build: ./services/search
+    volumes:
+      - ./services/search:/app
+    ports:
+      - "8004:8004"
+    env_file:
+      - ./services/search/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.search.rule=PathPrefix(`/api/search`)"
+      - "traefik.http.services.search.loadbalancer.server.port=8004"
+    depends_on:
+      - db
+
+  collaboration:
+    build: ./services/collaboration
+    volumes:
+      - ./services/collaboration:/app
+    ports:
+      - "8005:8005"
+    env_file:
+      - ./services/collaboration/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.collaboration.rule=PathPrefix(`/api/collab`)"
+      - "traefik.http.services.collaboration.loadbalancer.server.port=8005"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
