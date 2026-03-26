@@ -33,13 +33,12 @@ services:
       - default
     depends_on:
       - auth
-      - playlist
-      - track
-      - search
+      - core
       - collaboration
 
   auth:
     build: ./services/auth
+    command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8001 --reload
     volumes:
       - ./services/auth:/app
     ports:
@@ -53,63 +52,42 @@ services:
     depends_on:
       - db
 
-  playlist:
-    build: ./services/playlist
+  core:
+    build: ./services/core
+    command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8002 --reload
     volumes:
-      - ./services/playlist:/app
+      - ./services/core:/app
     ports:
       - "8002:8002"
     env_file:
-      - ./services/playlist/.env
+      - ./services/core/.env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.playlist.rule=PathPrefix(`/api/playlists`)"
-      - "traefik.http.services.playlist.loadbalancer.server.port=8002"
-    depends_on:
-      - db
-
-  track:
-    build: ./services/track
-    volumes:
-      - ./services/track:/app
-    ports:
-      - "8003:8003"
-    env_file:
-      - ./services/track/.env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.track.rule=PathPrefix(`/api/tracks`)"
-      - "traefik.http.services.track.loadbalancer.server.port=8003"
-    depends_on:
-      - db
-
-  search:
-    build: ./services/search
-    volumes:
-      - ./services/search:/app
-    ports:
-      - "8004:8004"
-    env_file:
-      - ./services/search/.env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.search.rule=PathPrefix(`/api/search`)"
-      - "traefik.http.services.search.loadbalancer.server.port=8004"
+      - "traefik.http.routers.core-playlists.rule=PathPrefix(`/api/playlists`)"
+      - "traefik.http.routers.core-playlists.service=core-svc"
+      - "traefik.http.routers.core-tracks.rule=PathPrefix(`/api/tracks`)"
+      - "traefik.http.routers.core-tracks.service=core-svc"
+      - "traefik.http.routers.core-search.rule=PathPrefix(`/api/search`)"
+      - "traefik.http.routers.core-search.service=core-svc"
+      - "traefik.http.routers.core-health.rule=PathPrefix(`/api/core`)"
+      - "traefik.http.routers.core-health.service=core-svc"
+      - "traefik.http.services.core-svc.loadbalancer.server.port=8002"
     depends_on:
       - db
 
   collaboration:
     build: ./services/collaboration
+    command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8003 --reload
     volumes:
       - ./services/collaboration:/app
     ports:
-      - "8005:8005"
+      - "8003:8003"
     env_file:
       - ./services/collaboration/.env
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.collaboration.rule=PathPrefix(`/api/collab`)"
-      - "traefik.http.services.collaboration.loadbalancer.server.port=8005"
+      - "traefik.http.routers.collab.rule=PathPrefix(`/api/collab`)"
+      - "traefik.http.services.collab.loadbalancer.server.port=8003"
     depends_on:
       - db
 

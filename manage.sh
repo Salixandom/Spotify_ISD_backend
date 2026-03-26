@@ -16,9 +16,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-# Service list
-SERVICES=("auth" "playlist" "track" "search" "collaboration" "db" "traefik")
-ALL_SERVICES=("auth" "playlist" "track" "search" "collaboration")
+# Service list - 3-service architecture
+SERVICES=("auth" "core" "collaboration" "db" "traefik")
+ALL_SERVICES=("auth" "core" "collaboration")
 
 # Helper functions
 print_header() {
@@ -163,10 +163,8 @@ health_check_all() {
     echo ""
 
     echo -e "${YELLOW}Auth Service:${NC}     $(check_health "auth" "http://localhost/api/auth/health/")"
-    echo -e "${YELLOW}Playlist Service:${NC} $(check_health "playlist" "http://localhost/api/playlists/health/")"
-    echo -e "${YELLOW}Track Service:${NC}    $(check_health "track" "http://localhost/api/tracks/health/")"
-    echo -e "${YELLOW}Search Service:${NC}   $(check_health "search" "http://localhost/api/search/health/")"
-    echo -e "${YELLOW}Collab Service:${NC}   $(check_health "collaboration" "http://localhost/api/collab/health/")"
+    echo -e "${YELLOW}Core Service:${NC}      $(check_health "core" "http://localhost/api/core/health/")"
+    echo -e "${YELLOW}Collab Service:${NC}    $(check_health "collaboration" "http://localhost/api/collab/health/")"
     echo -e "${YELLOW}Traefik Dashboard:${NC} $(check_health "traefik" "http://localhost:8080")"
     echo ""
 
@@ -194,17 +192,9 @@ health_check_service() {
                             check_health "auth" "http://localhost/api/auth/health/"
                             curl -s http://localhost/api/auth/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/auth/health/
                             ;;
-                        "playlist")
-                            check_health "playlist" "http://localhost/api/playlists/health/"
-                            curl -s http://localhost/api/playlists/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/playlists/health/
-                            ;;
-                        "track")
-                            check_health "track" "http://localhost/api/tracks/health/"
-                            curl -s http://localhost/api/tracks/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/tracks/health/
-                            ;;
-                        "search")
-                            check_health "search" "http://localhost/api/search/health/"
-                            curl -s http://localhost/api/search/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/search/health/
+                        "core")
+                            check_health "core" "http://localhost/api/core/health/"
+                            curl -s http://localhost/api/core/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/core/health/
                             ;;
                         "collaboration")
                             check_health "collaboration" "http://localhost/api/collab/health/"
@@ -321,14 +311,8 @@ test_endpoints() {
     echo -n "Auth health: "
     curl -s http://localhost/api/auth/health/ | jq -r '.status' 2>/dev/null || echo "failed"
 
-    echo -n "Playlist health: "
-    curl -s http://localhost/api/playlists/health/ | jq -r '.status' 2>/dev/null || echo "failed"
-
-    echo -n "Track health: "
-    curl -s http://localhost/api/tracks/health/ | jq -r '.status' 2>/dev/null || echo "failed"
-
-    echo -n "Search health: "
-    curl -s http://localhost/api/search/health/ | jq -r '.status' 2>/dev/null || echo "failed"
+    echo -n "Core health: "
+    curl -s http://localhost/api/core/health/ | jq -r '.status' 2>/dev/null || echo "failed"
 
     echo -n "Collab health: "
     curl -s http://localhost/api/collab/health/ | jq -r '.status' 2>/dev/null || echo "failed"
@@ -387,9 +371,7 @@ show_urls() {
 
     echo -e "${CYAN}Health Check Endpoints:${NC}"
     echo "  Auth:          http://localhost/api/auth/health/"
-    echo "  Playlist:      http://localhost/api/playlists/health/"
-    echo "  Track:         http://localhost/api/tracks/health/"
-    echo "  Search:        http://localhost/api/search/health/"
+    echo "  Core:          http://localhost/api/core/health/ (covers playlists, tracks, search)"
     echo "  Collaboration: http://localhost/api/collab/health/"
     echo ""
 

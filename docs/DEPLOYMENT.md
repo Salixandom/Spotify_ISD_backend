@@ -7,9 +7,7 @@
 # Copy example env files
 cp .env.example .env
 cp services/auth/.env.example services/auth/.env
-cp services/playlist/.env.example services/playlist/.env
-cp services/track/.env.example services/track/.env
-cp services/search/.env.example services/search/.env
+cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
 
 # Start services
@@ -17,9 +15,7 @@ docker-compose up -d
 
 # Run migrations
 docker exec spotify-collab_auth_1 uv run python manage.py migrate
-docker exec spotify-collab_playlist_1 uv run python manage.py migrate
-docker exec spotify-collab_track_1 uv run python manage.py migrate
-docker exec spotify-collab_search_1 uv run python manage.py migrate
+docker exec spotify-collab_core_1 uv run python manage.py migrate
 docker exec spotify-collab_collaboration_1 uv run python manage.py migrate
 ```
 
@@ -55,9 +51,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Run migrations
 docker-compose exec auth uv run python manage.py migrate
-docker-compose exec playlist uv run python manage.py migrate
-docker-compose exec track uv run python manage.py migrate
-docker-compose exec search uv run python manage.py migrate
+docker-compose exec core uv run python manage.py migrate
 docker-compose exec collaboration uv run python manage.py migrate
 ```
 
@@ -134,9 +128,12 @@ kubectl apply -f kube-manifests/
 - `JWT_ACCESS_TOKEN_LIFETIME`: Token lifetime in minutes (default: 60)
 - `JWT_REFRESH_TOKEN_LIFETIME`: Refresh token lifetime (default: 1440)
 
-**Playlist, Track, Search, Collaboration:**
+**Core Service:**
+- `AUTH_SERVICE_URL`: Auth service URL for token validation (default: `http://auth:8001`)
+- `COLLAB_SERVICE_URL`: Collaboration service URL (default: `http://collaboration:8003`)
+
+**Collaboration Service:**
 - `AUTH_SERVICE_URL`: Auth service URL for token validation
-- Inter-service URLs for internal communication
 
 ---
 

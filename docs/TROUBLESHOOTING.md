@@ -18,8 +18,8 @@ docker-compose up -d
 
 1. **Check for port conflicts**
 ```bash
-# See what's using ports 8001-8005
-netstat -tuln | grep -E '8001|8002|8003|8004|8005'
+# See what's using ports 8001, 8002, 8003
+netstat -tuln | grep -E '8001|8002|8003'
 # Or
 lsof -i :8001
 ```

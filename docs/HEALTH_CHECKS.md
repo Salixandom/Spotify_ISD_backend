@@ -2,7 +2,7 @@
 
 ## Overview
 
-All 5 microservices include a `/health/` endpoint for monitoring, orchestration, and health checks. These endpoints verify both service availability and database connectivity.
+All 3 microservices include a `/health/` endpoint for monitoring, orchestration, and health checks. These endpoints verify both service availability and database connectivity.
 
 ---
 
@@ -11,9 +11,7 @@ All 5 microservices include a `/health/` endpoint for monitoring, orchestration,
 | Service | Health Check URL | Purpose |
 |---------|-------------------|---------|
 | Auth | `http://localhost/api/auth/health/` | Verify auth service is up |
-| Playlist | `http://localhost/api/playlists/health/` | Verify playlist service is up |
-| Track | `http://localhost/api/tracks/health/` | Verify track service is up |
-| Search | `http://localhost/api/search/health/` | Verify search service is up |
+| Core | `http://localhost/api/core/health/` | Verify core service (playlists, tracks, search) is up |
 | Collaboration | `http://localhost/api/collab/health/` | Verify collaboration service is up |
 
 ---
@@ -26,8 +24,9 @@ All 5 microservices include a `/health/` endpoint for monitoring, orchestration,
 ```json
 {
     "status": "healthy",
-    "service": "auth",
-    "database": "connected"
+    "service": "core",
+    "database": "connected",
+    "apps": ["playlist", "track", "search"]
 }
 ```
 
@@ -65,9 +64,7 @@ All 5 microservices include a `/health/` endpoint for monitoring, orchestration,
 ```bash
 # Quick check
 curl http://localhost/api/auth/health/
-curl http://localhost/api/playlists/health/
-curl http://localhost/api/tracks/health/
-curl http://localhost/api/search/health/
+curl http://localhost/api/core/health/
 curl http://localhost/api/collab/health/
 ```
 
@@ -79,7 +76,7 @@ curl -s http://localhost/api/auth/health/ | jq '.'
 ### Automated Health Check Script
 ```bash
 #!/bin/bash
-for service in auth playlist track search collaboration; do
+for service in auth core collab; do
     echo -n "$service: "
     response=$(curl -s "http://localhost/api/${service}/health/")
     status=$(echo "$response" | jq -r '.status // "error"')
@@ -152,10 +149,8 @@ def health_check(request):
 
 ### Location in Each Service
 - `services/auth/authapp/views.py`
-- `services/playlist/playlistapp/views.py`
-- `services/track/trackapp/views.py`
-- `services/search/searchapp/views.py`
-- `services/collaboration/collaborationapp/views.py`
+- `services/core/core/urls.py` (aggregated health check for all apps)
+- `services/collaboration/collabapp/views.py`
 
 ### URL Configuration
 ```python
@@ -322,11 +317,9 @@ def health_check(request):
 
 | Service | Endpoint | Status | Last Checked |
 |---------|----------|--------|--------------|
-| Auth | `/api/auth/health/` | ✅ Healthy | 2026-03-26 02:45 |
-| Playlist | `/api/playlists/health/` | ✅ Healthy | 2026-03-26 02:45 |
-| Track | `/api/tracks/health/` | ✅ Healthy | 2026-03-26 02:45 |
-| Search | `/api/search/health/` | ✅ Healthy | 2026-03-26 02:45 |
-| Collaboration | `/api/collab/health/` | ✅ Healthy | 2026-03-26 02:45 |
+| Auth | `/api/auth/health/` | ✅ Healthy | 2026-03-26 |
+| Core | `/api/core/health/` | ✅ Healthy | 2026-03-26 |
+| Collaboration | `/api/collab/health/` | ✅ Healthy | 2026-03-26 |
 
 ---
 

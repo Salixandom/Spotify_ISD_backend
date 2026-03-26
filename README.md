@@ -10,15 +10,21 @@ A Spotify-like collaborative playlist application built with Django REST Framewo
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Traefik Gateway                          │
 │                    (Automatic Service Discovery)                │
-└──────┬─────────────┬─────────────┬─────────────┬───────────────┘
-       │             │             │             │
-       ▼             ▼             ▼             ▼
-┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│   Auth   │ │ Playlist │ │   Track  │ │  Search  │ │Collaboration│
-│  :8001   │ │  :8002   │ │  :8003   │ │  :8004   │ │   :8005    │
-└─────┬────┘ └─────┬────┘ └─────┬────┘ └─────┬────┘ └─────┬─────┘
-      │            │            │            │            │
-      └────────────┴────────────┴────────────┴────────────┘
+└──────────┬────────────┬──────────────┬──────────────────────────┘
+           │            │              │
+           ▼            ▼              ▼
+    ┌──────────┐ ┌──────────┐ ┌──────────────┐
+    │   Auth   │ │   Core   │ │ Collaboration│
+    │  :8001   │ │  :8002   │ │    :8003     │
+    └─────┬────┘ └─────┬────┘ └──────┬───────┘
+          │            │               │
+          │            │               │
+          │      ┌─────┴─────┐         │
+          │      │playlistapp│         │
+          │      │ trackapp  │         │
+          │      │searchapp  │         │
+          │      └───────────┘         │
+          └────────────┴───────────────┘
                      │
                      ▼
               ┌───────────┐
@@ -26,6 +32,11 @@ A Spotify-like collaborative playlist application built with Django REST Framewo
               │   :5432   │
               └───────────┘
 ```
+
+**Services:**
+- **Auth Service** (8001): User authentication, JWT tokens
+- **Core Service** (8002): Playlists, Tracks, and Search (merged into one Django project)
+- **Collaboration Service** (8003): Playlist collaboration features
 
 ---
 
@@ -45,9 +56,7 @@ cd spotify-collab
 # 2. Copy environment files
 cp .env.example .env
 cp services/auth/.env.example services/auth/.env
-cp services/playlist/.env.example services/playlist/.env
-cp services/track/.env.example services/track/.env
-cp services/search/.env.example services/search/.env
+cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
 
 # 3. Start services
@@ -55,30 +64,30 @@ docker-compose up -d
 
 # 4. Run migrations (first time only)
 docker exec spotify-collab_auth_1 uv run python manage.py migrate
-docker exec spotify-collab_playlist_1 uv run python manage.py migrate
-docker exec spotify-collab_track_1 uv run python manage.py migrate
-docker exec spotify-collab_search_1 uv run python manage.py migrate
+docker exec spotify-collab_core_1 uv run python manage.py migrate
 docker exec spotify-collab_collaboration_1 uv run python manage.py migrate
 
 # 5. Test
 curl http://localhost/api/auth/health/
+curl http://localhost/api/core/health/
 ```
 
 ---
 
 ## 📍 Service URLs
 
-| Service | Gateway URL | Direct URL | Port |
-|---------|-------------|------------|------|
-| Auth | http://localhost/api/auth/* | http://localhost:8001 | 8001 |
-| Playlist | http://localhost/api/playlists/* | http://localhost:8002 | 8002 |
-| Track | http://localhost/api/tracks/* | http://localhost:8003 | 8003 |
-| Search | http://localhost/api/search/* | http://localhost:8004 | 8004 |
-| Collaboration | http://localhost/api/collab/* | http://localhost:8005 | 8005 |
+| Service | Gateway URL | Direct URL | Port | Apps |
+|---------|-------------|------------|------|------|
+| Auth | http://localhost/api/auth/* | http://localhost:8001 | 8001 | Authentication |
+| Core | http://localhost/api/{playlists,tracks,search}/* | http://localhost:8002 | 8002 | Playlist, Track, Search |
+| Collaboration | http://localhost/api/collab/* | http://localhost:8003 | 8003 | Collaboration features |
+
+**All API endpoints remain unchanged** - the frontend doesn't need any updates!
 
 **Dashboards & Tools:**
 - Traefik Dashboard: http://localhost:8080
 - Database: localhost:5432
+- Health Checks: http://localhost/api/{auth,core,collab}/health/
 
 ---
 
@@ -244,7 +253,7 @@ spotify-collab_auth_1         Up       0.0.0.0:8001->8001/tcp
 spotify-collab_playlist_1     Up       0.0.0.0:8002->8002/tcp
 spotify-collab_track_1        Up       0.0.0.0:8003->8003/tcp
 spotify-collab_search_1       Up       0.0.0.0:8004->8004/tcp
-spotify-collab_collaboration_1 Up       0.0.0.0:8005->8005/tcp
+spotify-collab_collaboration_1 Up       0.0.0.0:8003->8003/tcp
 spotify-collab_db_1           Up       0.0.0.0:5432->5432/tcp
 spotify-collab_traefik_1      Up       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:8080->8080/tcp
 ```

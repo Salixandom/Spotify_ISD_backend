@@ -53,7 +53,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
@@ -61,13 +61,13 @@ services:
     domains:
       - auth-yourdomain.onrender.com
 
-  # Playlist Service
+  # Core Service (Playlist + Track + Search)
   - type: pserv
-    name: playlist-service
+    name: core-service
     env: docker
     plan: free
-    dockerContext: ./services/playlist
-    dockerfilePath: ./services/playlist/Dockerfile
+    dockerContext: ./services/core
+    dockerfilePath: ./services/core/Dockerfile
     envVars:
       - key: SERVICE_PORT
         value: 8002
@@ -99,26 +99,23 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
       - key: AUTH_SERVICE_URL
-        fromService:
-          name: auth-service
-          type: pserv
-          property: url
+        value: http://auth-service:8001
     domains:
-      - playlist-yourdomain.onrender.com
+      - core-yourdomain.onrender.com
 
-  # Track Service
+  # Collaboration Service
   - type: pserv
-    name: track-service
+    name: collab-service
     env: docker
     plan: free
-    dockerContext: ./services/track
-    dockerfilePath: ./services/track/Dockerfile
+    dockerContext: ./services/collaboration
+    dockerfilePath: ./services/collaboration/Dockerfile
     envVars:
       - key: SERVICE_PORT
         value: 8003
@@ -128,7 +125,10 @@ services:
           type: pserv
           property: host
       - key: DB_PORT
-        value: 5432
+        fromService:
+          name: spotify-db
+          type: pserv
+          property: port
       - key: DB_NAME
         fromService:
           name: spotify-db
@@ -147,106 +147,12 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
       - key: AUTH_SERVICE_URL
-        fromService:
-          name: auth-service
-          type: pserv
-          property: url
-      - key: PLAYLIST_SERVICE_URL
-        fromService:
-          name: playlist-service
-          type: pserv
-          property: url
-    domains:
-      - track-yourdomain.onrender.com
-
-  # Search Service
-  - type: pserv
-    name: search-service
-    env: docker
-    plan: free
-    dockerContext: ./services/search
-    dockerfilePath: ./services/search/Dockerfile
-    envVars:
-      - key: SERVICE_PORT
-        value: 8004
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: 5432
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: False
-      - key: ALLOWED_HOSTS
-        value: "*.onrender.com"
-      - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
-    domains:
-      - search-yourdomain.onrender.com
-
-  # Collaboration Service
-  - type: pserv
-    name: collaboration-service
-    env: docker
-    plan: free
-    dockerContext: ./services/collaboration
-    dockerfilePath: ./services/collaboration/Dockerfile
-    envVars:
-      - key: SERVICE_PORT
-        value: 8005
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: 5432
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: False
-      - key: ALLOWED_HOSTS
-        value: "*.onrender.com"
-      - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
+        value: http://auth-service:8001
     domains:
       - collab-yourdomain.onrender.com
