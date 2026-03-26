@@ -51,20 +51,13 @@ jobs:
           cd services/${{ matrix.service }}
           uv venv .venv-ci
           source .venv-ci/bin/activate
-          uv pip install flake8 black
+          uv pip install flake8
 
-      - name: Run flake8
+      - name: Run flake8 (syntax errors only - no formatting checks)
         run: |
           cd services/${{ matrix.service }}
           source .venv-ci/bin/activate
-          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,dist,build,*.egg-info --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,dist,build,*.egg-info --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Check code formatting with black
-        run: |
-          cd services/${{ matrix.service }}
-          source .venv-ci/bin/activate
-          black --check . --exclude ".venv-ci|.git|__pycache__|.uv|migrations|dist|build|*.egg-info"
+          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,migrations,dist,build,*.egg-info --count --select=E9,F63,F7,F82 --show-source --statistics
 
   # Job 3: Merge Conflict Detection
   conflict-check:

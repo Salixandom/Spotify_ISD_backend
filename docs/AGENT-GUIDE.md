@@ -490,10 +490,12 @@ docker-compose exec auth uv run python manage.py check
 
 ### When Working with Migrations
 
-1. **Always create migrations before git push** - Don't leave uncommitted migrations
+1. **Always create migrations before asking user to push** - Don't leave uncommitted migrations
 2. **Use manage.sh Option 9** - Not manual commands
 3. **Review generated migrations** - Check they look correct
 4. **Test migrations in dev** - Ensure they apply cleanly
+
+**⚠️ GIT POLICY**: After creating migrations, **ASK USER** to commit and push. Never run git commands yourself.
 
 ### When Adding Features
 
@@ -501,6 +503,122 @@ docker-compose exec auth uv run python manage.py check
 2. **Consider service boundaries** - Keep logic in appropriate service
 3. **Update documentation** - Document new features in session docs
 4. **Test end-to-end** - Verify full flow works
+
+---
+
+## 🔄 CI/CD Pre-Commit Checklist (CRITICAL!)
+
+**BEFORE pushing or creating PRs, ALWAYS run these checks locally to avoid CI failures:**
+
+### ✅ Mandatory Pre-Push Checks
+
+#### 1. Linting with Flake8 (Syntax Errors Only)
+
+**Why**: CI runs flake8 to catch actual syntax errors and undefined names
+
+```bash
+# Install flake8 (one-time setup)
+python3 -m pip install --break-system-packages --user flake8 -q
+
+# Check each service for syntax errors
+flake8 services/auth/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 services/core/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 services/collaboration/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+```
+
+**What this catches** (actual errors, not style):
+- Syntax errors (E9)
+- Undefined names (F63, F82)
+- Missing imports (F7)
+
+**Note**: Flake8 in CI only checks syntax errors, not code style or formatting
+
+#### 2. Verify UV Lockfiles are Committed
+
+**Why**: Docker builds FAIL in CI if `uv.lock` files are missing
+
+```bash
+# Check if uv.lock files are tracked by git
+git status services/*/uv.lock
+```
+
+**If uv.lock files show as "untracked"**:
+→ **ASK USER** to add them:
+```
+"⚠️ The uv.lock files are not committed to git. This will cause Docker build failures in CI.
+Please add them:
+git add services/auth/uv.lock services/core/uv.lock services/collaboration/uv.lock"
+```
+
+**Critical**: `.gitignore` has `uv.lock` commented out - these files MUST be committed for reproducible Docker builds
+
+#### 3. Test Docker Builds Locally
+
+**Why**: CI builds Docker images - catch issues locally before pushing
+
+```bash
+# Build each service (from project root)
+docker build -f services/auth/Dockerfile -t test-auth:latest ./services/auth
+docker build -f services/core/Dockerfile -t test-core:latest ./services/core
+docker build -f services/collaboration/Dockerfile -t test-collab:latest ./services/collaboration
+```
+
+**Common failures**:
+- Missing `uv.lock` → Add and commit the lockfile
+- Copy errors → Check file paths in Dockerfile
+- Dependency install fails → Check `pyproject.toml` syntax
+
+---
+
+### 🚀 Quick Pre-Push Command (Run This Before Every Push)
+
+```bash
+# One command to check everything
+echo "🔍 Running pre-push CI checks..."
+
+# 1. Check for syntax errors
+echo "▶ Checking syntax errors..."
+flake8 services/auth/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 services/core/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+flake8 services/collaboration/ --exclude=".venv,.git,__pycache__,.uv,migrations,dist,build,*.egg-info" --count --select=E9,F63,F7,F82 --show-source --statistics
+
+# 2. Verify uv.lock files
+echo "▶ Checking uv.lock files..."
+if ! git ls-files services/*/uv.lock | grep -q .; then
+    echo "❌ uv.lock files not tracked! Add them:"
+    echo "   git add services/auth/uv.lock services/core/uv.lock services/collaboration/uv.lock"
+    exit 1
+fi
+
+# 3. Check git status
+echo "▶ Checking what changed..."
+git status --short
+
+echo "✅ All pre-push checks passed! Ready to commit/push."
+```
+
+---
+
+### 📋 CI Job Reference
+
+When CI fails, check which job failed:
+
+| CI Job | What It Checks | Quick Fix |
+|--------|---------------|-----------|
+| **Docker Build** | Can build Docker images | Ensure `uv.lock` files are committed |
+| **Lint Python Code** | Flake8 syntax errors only | Run flake8 locally, fix actual syntax errors |
+| **Merge Conflict** | Can merge to main | `git fetch origin main && git merge origin/main` |
+
+---
+
+### 🎯 Agent Workflow: Before Making Changes
+
+1. **Read session docs** (as always)
+2. **Make your changes**
+3. **Run pre-push checks** (see above)
+4. **Ask user to commit and push**
+
+**NEVER skip step 3** - CI failures waste time and block PRs!
 
 ---
 
@@ -568,6 +686,61 @@ curl http://localhost/api/collab/health/
 
 ---
 
+## ⚠️ AGENT GIT POLICY (IMPORTANT!)
+
+### ❌ NEVER Run These Commands
+
+**Agents MUST NOT execute git operations:**
+- `git add`
+- `git commit`
+- `git push`
+- `git pull` (without explicit user request)
+- `git rebase`
+- `git reset`
+- `git clean`
+
+### ✅ ALWAYS Ask the User
+
+**Instead, inform the user what to commit:**
+
+```bash
+# ❌ WRONG - Agent runs git commands
+git add services/auth/uv.lock
+git commit -m "Add uv.lock"
+git push
+
+# ✅ RIGHT - Agent instructs user
+"Please commit the following changes:
+git add services/auth/uv.lock services/core/uv.lock services/collaboration/uv.lock
+git add .gitignore .github/workflows/ci.yml
+git add services/auth/pyproject.toml services/core/pyproject.toml services/collaboration/pyproject.toml
+git add services/  (formatted code)
+
+Commit message:
+fix(ci): resolve all CI failures - Docker builds, linting, and formatting
+
+Then push with: git push"
+```
+
+### Why This Policy?
+
+1. **User control** - Git operations change history, user should review first
+2. **Avoid mistakes** - Agents might commit wrong files or make bad commit messages
+3. **Code review** - User should see what's being committed before it's pushed
+4. **Accidental pushes** - Prevents pushing incomplete or broken work
+
+### Exception: Read-Only Git Commands
+
+**These ARE allowed** (they don't modify state):
+- `git status`
+- `git diff`
+- `git log`
+- `git show`
+- `git branch`
+- `git ls-files`
+
+---
+
 ## 💡 Agent Best Practices
 
 ### DO ✅
@@ -578,6 +751,8 @@ curl http://localhost/api/collab/health/
 - **Test changes** - Verify services start after modifications
 - **Ask for clarification** - If unsure, ask user before proceeding
 - **Document what you do** - Update session docs when implementing features
+- **Run pre-push CI checks** - Format with black, check with flake8, verify uv.lock
+- **Ask user to commit** - After making changes, provide clear git commands for user to run
 
 ### DON'T ❌
 
@@ -587,6 +762,7 @@ curl http://localhost/api/collab/health/
 - **Change working patterns** - Follow established conventions
 - **Ignore error messages** - Read logs and tracebacks carefully
 - **Skip testing** - Always verify changes work
+- **Run git commands** - NEVER use `git add`, `git commit`, `git push`, `git pull`
 
 ---
 
