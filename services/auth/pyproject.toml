@@ -11,3 +11,18 @@ dependencies = [
     "uvicorn[standard]==0.34.0",
     "dj-database-url>=2.0.0",
 ]
+
+[tool.black]
+line-length = 127
+exclude = '''
+/(
+    \.venv-ci
+  | \.git
+  | __pycache__
+  | \.uv
+  | migrations
+  | dist
+  | build
+  | .*\.egg-info
+)/
+'''

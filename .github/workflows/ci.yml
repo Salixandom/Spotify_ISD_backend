@@ -64,7 +64,7 @@ jobs:
         run: |
           cd services/${{ matrix.service }}
           source .venv-ci/bin/activate
-          black --check .
+          black --check . --exclude ".venv-ci|.git|__pycache__|.uv|migrations|dist|build|*.egg-info"
 
   # Job 3: Merge Conflict Detection
   conflict-check:
