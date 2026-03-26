@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "playlistapp",
     "trackapp",
     "searchapp",
+    "historyapp",
 ]
 
 MIDDLEWARE = [
