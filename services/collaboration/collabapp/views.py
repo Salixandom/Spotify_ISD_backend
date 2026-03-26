@@ -1,8 +1,39 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
+from django.db import connection
 from .models import Collaborator, InviteLink
 from .serializers import CollaboratorSerializer, InviteLinkSerializer
+
+
+class HealthCheckView(APIView):
+    """
+    Health check endpoint for monitoring and orchestration
+    Returns 200 if service and database are healthy
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            # Check database connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+
+            return Response(
+                {"status": "healthy", "service": "collaboration", "database": "connected"},
+                status=200,
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "status": "unhealthy",
+                    "service": "collaboration",
+                    "database": "disconnected",
+                    "error": str(e),
+                },
+                status=503,
+            )
 
 
 class GenerateInviteView(APIView):
