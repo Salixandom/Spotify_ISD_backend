@@ -8,45 +8,50 @@ from .models import Song
 
 from .serializers import SongSerializer
 
+
 class SearchView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        query = request.query_params.get('q', '')
+        query = request.query_params.get("q", "")
         if not query:
             return Response([])
         results = Song.objects.filter(
-            Q(title__icontains=query) |
-            Q(artist__icontains=query) |
-            Q(album__icontains=query)
+            Q(title__icontains=query)
+            | Q(artist__icontains=query)
+            | Q(album__icontains=query)
         )[:20]
         serializer = SongSerializer(results, many=True)
         return Response(serializer.data)
+
 
 class BrowseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        genres = Song.objects.values_list('genre', flat=True).distinct()
+        genres = Song.objects.values_list("genre", flat=True).distinct()
         return Response(list(genres))
 
-@api_view(['GET'])
+
+@api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def health_check(request):
     """Health check endpoint"""
     try:
         with connection.cursor() as cursor:
-            cursor.execute('SELECT 1')
+            cursor.execute("SELECT 1")
             cursor.fetchone()
-        return Response({
-            'status': 'healthy',
-            'service': 'search',
-            'database': 'connected'
-        }, status=200)
+        return Response(
+            {"status": "healthy", "service": "search", "database": "connected"},
+            status=200,
+        )
     except Exception as e:
-        return Response({
-            'status': 'unhealthy',
-            'service': 'search',
-            'database': 'disconnected',
-            'error': str(e)
-        }, status=503)
+        return Response(
+            {
+                "status": "unhealthy",
+                "service": "search",
+                "database": "disconnected",
+                "error": str(e),
+            },
+            status=503,
+        )

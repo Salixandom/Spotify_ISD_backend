@@ -19,35 +19,42 @@ class PlaylistViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
+            )
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
+            )
         return super().destroy(request, *args, **kwargs)
+
 
 from rest_framework.decorators import api_view, permission_classes
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def health_check(request):
     """Health check endpoint"""
     try:
         with connection.cursor() as cursor:
-            cursor.execute('SELECT 1')
+            cursor.execute("SELECT 1")
             cursor.fetchone()
-        return Response({
-            'status': 'healthy',
-            'service': 'playlist',
-            'database': 'connected'
-        }, status=200)
+        return Response(
+            {"status": "healthy", "service": "playlist", "database": "connected"},
+            status=200,
+        )
     except Exception as e:
-        return Response({
-            'status': 'unhealthy',
-            'service': 'playlist',
-            'database': 'disconnected',
-            'error': str(e)
-        }, status=503)
+        return Response(
+            {
+                "status": "unhealthy",
+                "service": "playlist",
+                "database": "disconnected",
+                "error": str(e),
+            },
+            status=503,
+        )
