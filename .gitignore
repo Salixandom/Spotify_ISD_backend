@@ -36,7 +36,9 @@ db.sqlite3-journal
 
 # UV
 .uv/
-uv.lock
+# uv.lock - Commented out to allow committing for reproducible Docker builds
+# Uncomment if you prefer not to commit lockfiles (requires Dockerfile changes)
+# uv.lock
 
 # Docker
 *.pid

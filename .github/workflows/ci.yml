@@ -57,8 +57,8 @@ jobs:
         run: |
           cd services/${{ matrix.service }}
           source .venv-ci/bin/activate
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,dist,build,*.egg-info --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,dist,build,*.egg-info --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Check code formatting with black
         run: |
