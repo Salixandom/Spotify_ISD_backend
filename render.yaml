@@ -1,20 +1,10 @@
 # Render.com Deployment Configuration
 # https://render.com/docs/yaml-spec
+#
+# Configuration: Supabase (External PostgreSQL)
+# All services connect to a Supabase project instead of Render's internal database
 
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: spotify-db
-    env: docker
-    plan: starter  # Change to production plan as needed
-    envVars:
-      - key: POSTGRES_DB
-        value: spotifydb
-      - key: POSTGRES_USER
-        generateValue: true
-      - key: POSTGRES_PASSWORD
-        generateValue: true
-
   # Auth Service
   - type: pserv
     name: auth-service
@@ -25,31 +15,11 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8001
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: port
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+      # Supabase Connection (replace with your Supabase DATABASE_URL)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+        # Get this from: Supabase Dashboard → Settings → Database → Connection String
+        # Format: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
@@ -58,6 +28,8 @@ services:
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
+      - key: RUN_MIGRATIONS
+        value: false  # Run migrations manually after deployment
     domains:
       - auth-yourdomain.onrender.com
 
@@ -71,31 +43,9 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8002
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: port
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+      # Supabase Connection (same for all services)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
@@ -105,7 +55,9 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
       - key: AUTH_SERVICE_URL
-        value: http://auth-service:8001
+        value: https://auth-service.onrender.com
+      - key: RUN_MIGRATIONS
+        value: false
     domains:
       - core-yourdomain.onrender.com
 
@@ -119,31 +71,9 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8003
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: port
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+      # Supabase Connection (same for all services)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
@@ -153,6 +83,11 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
       - key: AUTH_SERVICE_URL
-        value: http://auth-service:8001
+        value: https://auth-service.onrender.com
+      - key: RUN_MIGRATIONS
+        value: false
     domains:
       - collab-yourdomain.onrender.com
+
+# Note: To use Render's internal PostgreSQL instead, restore the original render.yaml
+# or create a separate render-postgres.yaml file.

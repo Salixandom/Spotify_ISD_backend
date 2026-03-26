@@ -8,8 +8,8 @@
 git clone https://github.com/Salixandom/Spotify_ISD_backend.git
 cd spotify-collab
 
-# Always work on a feature branch (never on main!)
-git checkout -b feature/your-feature-name
+# Always work on a member branch (never on main!)
+git checkout -b "member/your-name"
 ```
 
 ### Step 2: Environment Setup
@@ -19,6 +19,8 @@ cp .env.example .env
 cp services/auth/.env.example services/auth/.env
 cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
+
+./manage.sh
 ```
 
 ### Step 3: Start Services

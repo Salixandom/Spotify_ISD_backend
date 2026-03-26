@@ -8,7 +8,7 @@ A Spotify-like collaborative playlist application built with Django REST Framewo
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Traefik Gateway                          │
+│                         Traefik Gateway                         │
 │                    (Automatic Service Discovery)                │
 └──────────┬────────────┬──────────────┬──────────────────────────┘
            │            │              │
@@ -16,7 +16,7 @@ A Spotify-like collaborative playlist application built with Django REST Framewo
     ┌──────────┐ ┌──────────┐ ┌──────────────┐
     │   Auth   │ │   Core   │ │ Collaboration│
     │  :8001   │ │  :8002   │ │    :8003     │
-    └─────┬────┘ └─────┬────┘ └──────┬───────┘
+    └─────┬────┘ └─────┬────┘ └────────┬─────┘
           │            │               │
           │            │               │
           │      ┌─────┴─────┐         │
@@ -28,7 +28,7 @@ A Spotify-like collaborative playlist application built with Django REST Framewo
                      │
                      ▼
               ┌───────────┐
-              │ PostgreSQL │
+              │ PostgreSQL│
               │   :5432   │
               └───────────┘
 ```

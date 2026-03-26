@@ -38,6 +38,8 @@ services:
 
   auth:
     build: ./services/auth
+    # Entrypoint script automatically runs migrations on startup
+    # Set RUN_MIGRATIONS=false in .env to skip auto-migrations
     command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8001 --reload
     volumes:
       - ./services/auth:/app
@@ -45,6 +47,8 @@ services:
       - "8001:8001"
     env_file:
       - ./services/auth/.env
+    environment:
+      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
@@ -54,6 +58,8 @@ services:
 
   core:
     build: ./services/core
+    # Entrypoint script automatically runs migrations on startup
+    # Set RUN_MIGRATIONS=false in .env to skip auto-migrations
     command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8002 --reload
     volumes:
       - ./services/core:/app
@@ -61,6 +67,8 @@ services:
       - "8002:8002"
     env_file:
       - ./services/core/.env
+    environment:
+      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.core-playlists.rule=PathPrefix(`/api/playlists`)"
@@ -77,6 +85,8 @@ services:
 
   collaboration:
     build: ./services/collaboration
+    # Entrypoint script automatically runs migrations on startup
+    # Set RUN_MIGRATIONS=false in .env to skip auto-migrations
     command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8003 --reload
     volumes:
       - ./services/collaboration:/app
@@ -84,6 +94,8 @@ services:
       - "8003:8003"
     env_file:
       - ./services/collaboration/.env
+    environment:
+      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.collab.rule=PathPrefix(`/api/collab`)"

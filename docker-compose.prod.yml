@@ -43,6 +43,7 @@ services:
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     # No volume mounts in production (read-only code)
     # No ports exposed (only through Traefik)
     deploy:
@@ -69,6 +70,7 @@ services:
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     deploy:
       resources:
         limits:
@@ -93,6 +95,7 @@ services:
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     deploy:
       resources:
         limits:

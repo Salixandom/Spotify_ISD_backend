@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-secret')
@@ -46,16 +47,29 @@ REST_FRAMEWORK = {
     ),
 }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST'),
-        'PORT': os.environ.get('DB_PORT'),
+# Database configuration - supports both DATABASE_URL and individual env vars
+# Priority: DATABASE_URL (Supabase) > Individual vars (Docker PostgreSQL)
+if os.environ.get('DATABASE_URL'):
+    # Production: Supabase or any database via DATABASE_URL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    # Development: Docker PostgreSQL with individual env vars
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'spotifydb'),
+            'USER': os.environ.get('DB_USER', 'spotifyuser'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'spotifypass'),
+            'HOST': os.environ.get('DB_HOST', 'db'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+        }
+    }
 
 TEMPLATES = [
     {

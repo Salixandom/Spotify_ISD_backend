@@ -66,18 +66,18 @@ show_menu() {
     echo -e "  ${CYAN}6.${NC}  View logs (specific service)"
     echo -e "  ${CYAN}7.${NC}  Health check (all services)"
     echo -e "  ${CYAN}8.${NC}  Health check (specific service)"
-    echo -e "  ${CYAN}9.${NC}  Run migrations"
-    echo -e "  ${CYAN}10.${NC} Create superuser"
-    echo -e "  ${CYAN}11.${NC}  Access service shell"
-    echo -e "  ${CYAN}12.${NC}  Rebuild service"
-    echo -e "  ${CYAN}13.${NC}  Test endpoints"
-    echo -e "  ${CYAN}14.${NC}  Clean restart (remove volumes)"
-    echo -e "  ${CYAN}15.${NC}  Show service URLs"
-    echo -e "  ${CYAN}16.${NC}  Database operations"
-    echo -e "  ${CYAN}17.${NC}  Update & Restart from Git"
-    echo -e "  ${CYAN}0.${NC}  Exit"
+    echo -e "  ${CYAN}9.${NC}  Make migrations (create migration files)"
+    echo -e "  ${CYAN}10.${NC}  Run migrations (apply to database)"
+    echo -e "  ${CYAN}11.${NC}  Create superuser"
+    echo -e "  ${CYAN}12.${NC}  Access service shell"
+    echo -e "  ${CYAN}13.${NC}  Rebuild service"
+    echo -e "  ${CYAN}14.${NC}  Test endpoints"
+    echo -e "  ${CYAN}15.${NC}  Clean restart (remove volumes)"
+    echo -e "  ${CYAN}16.${NC}  Show service URLs"
+    echo -e "  ${CYAN}17.${NC}  Database operations"
+    echo -e "  ${CYAN}18.${NC}  Update & Restart from Git"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-17]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-18]: ${NC}"
 }
 
 show_status() {
@@ -223,6 +223,35 @@ run_migrations() {
     echo ""
     echo -e "${GREEN}✓ Migrations completed${NC}"
     sleep 2
+}
+
+make_migrations() {
+    print_header
+    echo -e "${BOLD}Select service for creating migrations:${NC}"
+    echo ""
+
+    select service in "${ALL_SERVICES[@]}" "Back to main menu"; do
+        case $service in
+            "Back to main menu")
+                break
+                ;;
+            *)
+                if [ -n "$service" ]; then
+                    print_header
+                    echo -e "${BOLD}Creating migrations for $service${NC}"
+                    echo ""
+                    echo -e "${CYAN}Running makemigrations...${NC}"
+                    docker-compose exec "$service" uv run python manage.py makemigrations
+                    echo ""
+                    echo -e "${GREEN}✓ Migrations created${NC}"
+                    echo -e "${YELLOW}⚠ Review the migration files, then commit them to git${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                break
+                ;;
+        esac
+    done
 }
 
 create_superuser() {
@@ -503,15 +532,16 @@ main() {
             6) view_logs_service ;;
             7) health_check_all ;;
             8) health_check_service ;;
-            9) run_migrations ;;
-            10) create_superuser ;;
-            11) access_shell ;;
-            12) rebuild_service ;;
-            13) test_endpoints ;;
-            14) clean_restart ;;
-            15) show_urls ;;
-            16) database_operations ;;
-            17) update_restart ;;
+            9) make_migrations ;;
+            10) run_migrations ;;
+            11) create_superuser ;;
+            12) access_shell ;;
+            13) rebuild_service ;;
+            14) test_endpoints ;;
+            15) clean_restart ;;
+            16) show_urls ;;
+            17) database_operations ;;
+            18) update_restart ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"
