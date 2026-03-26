@@ -1,0 +1,93 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Job 1: Docker Build Test
+  docker-build:
+    name: Test Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Auth Service
+        run: |
+          docker build -f services/auth/Dockerfile -t test-auth:latest ./services/auth
+
+      - name: Build Core Service
+        run: |
+          docker build -f services/core/Dockerfile -t test-core:latest ./services/core
+
+      - name: Build Collaboration Service
+        run: |
+          docker build -f services/collaboration/Dockerfile -t test-collab:latest ./services/collaboration
+
+  # Job 2: Lint Python Code (using uv)
+  lint:
+    name: Lint Python Code
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth, core, collaboration]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set up Python with uv and install linting tools
+        run: |
+          cd services/${{ matrix.service }}
+          uv venv .venv-ci
+          source .venv-ci/bin/activate
+          uv pip install flake8
+
+      - name: Run flake8 (syntax errors only - no formatting checks)
+        run: |
+          cd services/${{ matrix.service }}
+          source .venv-ci/bin/activate
+          flake8 . --exclude=.venv-ci,.git,__pycache__,.uv,migrations,dist,build,*.egg-info --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  # Job 3: Merge Conflict Detection
+  conflict-check:
+    name: Merge Conflict Detector
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin main
+          git merge origin/main --no-commit --no-ff
+          if [ $? -ne 0 ]; then
+            echo "❌ Merge conflicts detected!"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          echo "✅ No merge conflicts"
+
+      - name: Comment on PR (if conflict found)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Merge conflicts detected** with `main` branch.\n\nPlease resolve conflicts before merging.'
+            })

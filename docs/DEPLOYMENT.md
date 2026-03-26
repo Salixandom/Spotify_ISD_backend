@@ -7,20 +7,14 @@
 # Copy example env files
 cp .env.example .env
 cp services/auth/.env.example services/auth/.env
-cp services/playlist/.env.example services/playlist/.env
-cp services/track/.env.example services/track/.env
-cp services/search/.env.example services/search/.env
+cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
 
-# Start services
+# Start services (migrations run automatically via entrypoint)
 docker-compose up -d
 
-# Run migrations
-docker exec spotify-collab_auth_1 uv run python manage.py migrate
-docker exec spotify-collab_playlist_1 uv run python manage.py migrate
-docker exec spotify-collab_track_1 uv run python manage.py migrate
-docker exec spotify-collab_search_1 uv run python manage.py migrate
-docker exec spotify-collab_collaboration_1 uv run python manage.py migrate
+# Migrations are now automatic! But you can still run manually if needed:
+./manage.sh  # Option 9: Run migrations
 ```
 
 ---
@@ -53,12 +47,13 @@ EOF
 # Use production config
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-# Run migrations
+# Run migrations (auto-migrations are DISABLED in production for safety)
 docker-compose exec auth uv run python manage.py migrate
-docker-compose exec playlist uv run python manage.py migrate
-docker-compose exec track uv run python manage.py migrate
-docker-compose exec search uv run python manage.py migrate
+docker-compose exec core uv run python manage.py migrate
 docker-compose exec collaboration uv run python manage.py migrate
+
+# Or use the management script:
+./manage.sh  # Option 9: Run migrations
 ```
 
 **Step 3: Configure SSL (Automatic)**
@@ -134,9 +129,17 @@ kubectl apply -f kube-manifests/
 - `JWT_ACCESS_TOKEN_LIFETIME`: Token lifetime in minutes (default: 60)
 - `JWT_REFRESH_TOKEN_LIFETIME`: Refresh token lifetime (default: 1440)
 
-**Playlist, Track, Search, Collaboration:**
+**Core Service:**
+- `AUTH_SERVICE_URL`: Auth service URL for token validation (default: `http://auth:8001`)
+- `COLLAB_SERVICE_URL`: Collaboration service URL (default: `http://collaboration:8003`)
+
+**Collaboration Service:**
 - `AUTH_SERVICE_URL`: Auth service URL for token validation
-- Inter-service URLs for internal communication
+
+**Migration Control (All Services):**
+- `RUN_MIGRATIONS`: Enable/disable automatic migrations on container startup (default: `true` in dev, `false` in production)
+  - Development: Migrations run automatically for convenience
+  - Production: Set to `false` for manual control, then run migrations via `./manage.sh` or CI/CD
 
 ---
 
@@ -188,21 +191,41 @@ docker-compose logs -f auth
 
 ## 🔄 Updates & Migrations
 
+### Automatic vs Manual Migrations
+
+**Development (Automatic):**
+- Migrations run automatically on container startup via entrypoint script
+- The entrypoint waits for PostgreSQL to be ready before running migrations
+- Set `RUN_MIGRATIONS=false` in service `.env` to disable if needed
+
+**Production (Manual):**
+- Auto-migrations are disabled by default for safety
+- Run migrations manually before or after deployment:
+  ```bash
+  # Option 1: Via management script
+  ./manage.sh  # Select "Run migrations"
+
+  # Option 2: Direct execution
+  docker-compose exec auth uv run python manage.py migrate
+  docker-compose exec core uv run python manage.py migrate
+  docker-compose exec collaboration uv run python manage.py migrate
+  ```
+
 ### Deploying Updates
 ```bash
 # Pull latest code
 git pull
 
 # Rebuild services
-docker-compose build auth playlist track search collaboration
+docker-compose build auth core collaboration
 
-# Restart with no downtime
+# Restart with no downtime (auto-migrations run in dev)
 docker-compose up -d --no-deps --build auth
-docker-compose up -d --no-deps --build playlist
-# ... repeat for each service
+docker-compose up -d --no-deps --build core
+docker-compose up -d --no-deps --build collaboration
 
-# Run migrations
-docker-compose exec auth uv run python manage.py migrate
+# Production: Run migrations manually after services are up
+./manage.sh  # Select "Run migrations"
 ```
 
 ---

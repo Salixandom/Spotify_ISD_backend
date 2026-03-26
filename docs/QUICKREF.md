@@ -5,11 +5,11 @@
 ### Step 1: Clone Repository
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/Salixandom/Spotify_ISD_backend.git
 cd spotify-collab
 
-# Always work on a feature branch (never on main!)
-git checkout -b feature/your-feature-name
+# Always work on a member branch (never on main!)
+git checkout -b "member/your-name"
 ```
 
 ### Step 2: Environment Setup
@@ -17,10 +17,10 @@ git checkout -b feature/your-feature-name
 # Copy env templates (uses safe defaults for local development)
 cp .env.example .env
 cp services/auth/.env.example services/auth/.env
-cp services/playlist/.env.example services/playlist/.env
-cp services/track/.env.example services/track/.env
-cp services/search/.env.example services/search/.env
+cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
+
+./manage.sh
 ```
 
 ### Step 3: Start Services
@@ -30,9 +30,7 @@ docker-compose up -d
 
 # Run migrations (first time only)
 docker exec spotify-collab_auth_1 uv run python manage.py migrate
-docker exec spotify-collab_playlist_1 uv run python manage.py migrate
-docker exec spotify-collab_track_1 uv run python manage.py migrate
-docker exec spotify-collab_search_1 uv run python manage.py migrate
+docker exec spotify-collab_core_1 uv run python manage.py migrate
 docker exec spotify-collab_collaboration_1 uv run python manage.py migrate
 ```
 

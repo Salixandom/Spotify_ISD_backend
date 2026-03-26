@@ -43,6 +43,7 @@ services:
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     # No volume mounts in production (read-only code)
     # No ports exposed (only through Traefik)
     deploy:
@@ -60,73 +61,26 @@ services:
       retries: 3
       start_period: 40s
 
-  playlist:
+  core:
     restart: always
     env_file:
-      - ./services/playlist/.env
+      - ./services/core/.env
     environment:
       - DEBUG=False
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     deploy:
       resources:
         limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
           cpus: '0.5'
           memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/api/playlists/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  track:
-    restart: always
-    env_file:
-      - ./services/track/.env
-    environment:
-      - DEBUG=False
-      - SECURE_SSL_REDIRECT=True
-      - SESSION_COOKIE_SECURE=True
-      - CSRF_COOKIE_SECURE=True
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/api/tracks/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  search:
-    restart: always
-    env_file:
-      - ./services/search/.env
-    environment:
-      - DEBUG=False
-      - SECURE_SSL_REDIRECT=True
-      - SESSION_COOKIE_SECURE=True
-      - CSRF_COOKIE_SECURE=True
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/api/search/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/core/health/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -141,6 +95,7 @@ services:
       - SECURE_SSL_REDIRECT=True
       - SESSION_COOKIE_SECURE=True
       - CSRF_COOKIE_SECURE=True
+      - RUN_MIGRATIONS=false  # Disable auto-migrations in production - run manually via manage.sh or CI/CD
     deploy:
       resources:
         limits:
@@ -150,7 +105,7 @@ services:
           cpus: '0.25'
           memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8005/api/collab/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/collab/"]
       interval: 30s
       timeout: 10s
       retries: 3

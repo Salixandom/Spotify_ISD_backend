@@ -1,0 +1,28 @@
+[project]
+name = "core-service"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "Django==4.2.17",
+    "djangorestframework==3.15.2",
+    "djangorestframework-simplejwt==5.4.0",
+    "psycopg2-binary==2.9.9",
+    "django-cors-headers==4.6.0",
+    "uvicorn[standard]==0.34.0",
+    "dj-database-url>=2.0.0",
+]
+
+[tool.black]
+line-length = 127
+exclude = '''
+/(
+    \.venv-ci
+  | \.git
+  | __pycache__
+  | \.uv
+  | migrations
+  | dist
+  | build
+  | .*\.egg-info
+)/
+'''

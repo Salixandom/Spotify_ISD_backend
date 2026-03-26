@@ -1,20 +1,10 @@
 # Render.com Deployment Configuration
 # https://render.com/docs/yaml-spec
+#
+# Configuration: Supabase (External PostgreSQL)
+# All services connect to a Supabase project instead of Render's internal database
 
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: spotify-db
-    env: docker
-    plan: starter  # Change to production plan as needed
-    envVars:
-      - key: POSTGRES_DB
-        value: spotifydb
-      - key: POSTGRES_USER
-        generateValue: true
-      - key: POSTGRES_PASSWORD
-        generateValue: true
-
   # Auth Service
   - type: pserv
     name: auth-service
@@ -25,228 +15,79 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8001
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: port
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+      # Supabase Connection (replace with your Supabase DATABASE_URL)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+        # Get this from: Supabase Dashboard → Settings → Database → Connection String
+        # Format: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
+      - key: RUN_MIGRATIONS
+        value: false  # Run migrations manually after deployment
     domains:
       - auth-yourdomain.onrender.com
 
-  # Playlist Service
+  # Core Service (Playlist + Track + Search)
   - type: pserv
-    name: playlist-service
+    name: core-service
     env: docker
     plan: free
-    dockerContext: ./services/playlist
-    dockerfilePath: ./services/playlist/Dockerfile
+    dockerContext: ./services/core
+    dockerfilePath: ./services/core/Dockerfile
     envVars:
       - key: SERVICE_PORT
         value: 8002
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: port
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+      # Supabase Connection (same for all services)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
       - key: AUTH_SERVICE_URL
-        fromService:
-          name: auth-service
-          type: pserv
-          property: url
+        value: https://auth-service.onrender.com
+      - key: RUN_MIGRATIONS
+        value: false
     domains:
-      - playlist-yourdomain.onrender.com
-
-  # Track Service
-  - type: pserv
-    name: track-service
-    env: docker
-    plan: free
-    dockerContext: ./services/track
-    dockerfilePath: ./services/track/Dockerfile
-    envVars:
-      - key: SERVICE_PORT
-        value: 8003
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: 5432
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: False
-      - key: ALLOWED_HOSTS
-        value: "*.onrender.com"
-      - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
-      - key: AUTH_SERVICE_URL
-        fromService:
-          name: auth-service
-          type: pserv
-          property: url
-      - key: PLAYLIST_SERVICE_URL
-        fromService:
-          name: playlist-service
-          type: pserv
-          property: url
-    domains:
-      - track-yourdomain.onrender.com
-
-  # Search Service
-  - type: pserv
-    name: search-service
-    env: docker
-    plan: free
-    dockerContext: ./services/search
-    dockerfilePath: ./services/search/Dockerfile
-    envVars:
-      - key: SERVICE_PORT
-        value: 8004
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: 5432
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
-      - key: SECRET_KEY
-        generateValue: true
-      - key: DEBUG
-        value: False
-      - key: ALLOWED_HOSTS
-        value: "*.onrender.com"
-      - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
-    domains:
-      - search-yourdomain.onrender.com
+      - core-yourdomain.onrender.com
 
   # Collaboration Service
   - type: pserv
-    name: collaboration-service
+    name: collab-service
     env: docker
     plan: free
     dockerContext: ./services/collaboration
     dockerfilePath: ./services/collaboration/Dockerfile
     envVars:
       - key: SERVICE_PORT
-        value: 8005
-      - key: DB_HOST
-        fromService:
-          name: spotify-db
-          type: pserv
-          property: host
-      - key: DB_PORT
-        value: 5432
-      - key: DB_NAME
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_DB
-      - key: DB_USER
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_USER
-      - key: DB_PASSWORD
-        fromService:
-          name: spotify-db
-          type: pserv
-          envVarKey: POSTGRES_PASSWORD
+        value: 8003
+      # Supabase Connection (same for all services)
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: False
+        value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://your-frontend.onrender.com"
+      - key: AUTH_SERVICE_URL
+        value: https://auth-service.onrender.com
+      - key: RUN_MIGRATIONS
+        value: false
     domains:
       - collab-yourdomain.onrender.com
+
+# Note: To use Render's internal PostgreSQL instead, restore the original render.yaml
+# or create a separate render-postgres.yaml file.

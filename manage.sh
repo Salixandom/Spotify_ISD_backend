@@ -16,9 +16,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-# Service list
-SERVICES=("auth" "playlist" "track" "search" "collaboration" "db" "traefik")
-ALL_SERVICES=("auth" "playlist" "track" "search" "collaboration")
+# Service list - 3-service architecture
+SERVICES=("auth" "core" "collaboration" "db" "traefik")
+ALL_SERVICES=("auth" "core" "collaboration")
 
 # Helper functions
 print_header() {
@@ -66,18 +66,18 @@ show_menu() {
     echo -e "  ${CYAN}6.${NC}  View logs (specific service)"
     echo -e "  ${CYAN}7.${NC}  Health check (all services)"
     echo -e "  ${CYAN}8.${NC}  Health check (specific service)"
-    echo -e "  ${CYAN}9.${NC}  Run migrations"
-    echo -e "  ${CYAN}10.${NC} Create superuser"
-    echo -e "  ${CYAN}11.${NC}  Access service shell"
-    echo -e "  ${CYAN}12.${NC}  Rebuild service"
-    echo -e "  ${CYAN}13.${NC}  Test endpoints"
-    echo -e "  ${CYAN}14.${NC}  Clean restart (remove volumes)"
-    echo -e "  ${CYAN}15.${NC}  Show service URLs"
-    echo -e "  ${CYAN}16.${NC}  Database operations"
-    echo -e "  ${CYAN}17.${NC}  Update & Restart from Git"
-    echo -e "  ${CYAN}0.${NC}  Exit"
+    echo -e "  ${CYAN}9.${NC}  Make migrations (create migration files)"
+    echo -e "  ${CYAN}10.${NC}  Run migrations (apply to database)"
+    echo -e "  ${CYAN}11.${NC}  Create superuser"
+    echo -e "  ${CYAN}12.${NC}  Access service shell"
+    echo -e "  ${CYAN}13.${NC}  Rebuild service"
+    echo -e "  ${CYAN}14.${NC}  Test endpoints"
+    echo -e "  ${CYAN}15.${NC}  Clean restart (remove volumes)"
+    echo -e "  ${CYAN}16.${NC}  Show service URLs"
+    echo -e "  ${CYAN}17.${NC}  Database operations"
+    echo -e "  ${CYAN}18.${NC}  Update & Restart from Git"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-17]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-18]: ${NC}"
 }
 
 show_status() {
@@ -163,10 +163,8 @@ health_check_all() {
     echo ""
 
     echo -e "${YELLOW}Auth Service:${NC}     $(check_health "auth" "http://localhost/api/auth/health/")"
-    echo -e "${YELLOW}Playlist Service:${NC} $(check_health "playlist" "http://localhost/api/playlists/health/")"
-    echo -e "${YELLOW}Track Service:${NC}    $(check_health "track" "http://localhost/api/tracks/health/")"
-    echo -e "${YELLOW}Search Service:${NC}   $(check_health "search" "http://localhost/api/search/health/")"
-    echo -e "${YELLOW}Collab Service:${NC}   $(check_health "collaboration" "http://localhost/api/collab/health/")"
+    echo -e "${YELLOW}Core Service:${NC}      $(check_health "core" "http://localhost/api/core/health/")"
+    echo -e "${YELLOW}Collab Service:${NC}    $(check_health "collaboration" "http://localhost/api/collab/health/")"
     echo -e "${YELLOW}Traefik Dashboard:${NC} $(check_health "traefik" "http://localhost:8080")"
     echo ""
 
@@ -194,17 +192,9 @@ health_check_service() {
                             check_health "auth" "http://localhost/api/auth/health/"
                             curl -s http://localhost/api/auth/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/auth/health/
                             ;;
-                        "playlist")
-                            check_health "playlist" "http://localhost/api/playlists/health/"
-                            curl -s http://localhost/api/playlists/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/playlists/health/
-                            ;;
-                        "track")
-                            check_health "track" "http://localhost/api/tracks/health/"
-                            curl -s http://localhost/api/tracks/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/tracks/health/
-                            ;;
-                        "search")
-                            check_health "search" "http://localhost/api/search/health/"
-                            curl -s http://localhost/api/search/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/search/health/
+                        "core")
+                            check_health "core" "http://localhost/api/core/health/"
+                            curl -s http://localhost/api/core/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/core/health/
                             ;;
                         "collaboration")
                             check_health "collaboration" "http://localhost/api/collab/health/"
@@ -233,6 +223,35 @@ run_migrations() {
     echo ""
     echo -e "${GREEN}✓ Migrations completed${NC}"
     sleep 2
+}
+
+make_migrations() {
+    print_header
+    echo -e "${BOLD}Select service for creating migrations:${NC}"
+    echo ""
+
+    select service in "${ALL_SERVICES[@]}" "Back to main menu"; do
+        case $service in
+            "Back to main menu")
+                break
+                ;;
+            *)
+                if [ -n "$service" ]; then
+                    print_header
+                    echo -e "${BOLD}Creating migrations for $service${NC}"
+                    echo ""
+                    echo -e "${CYAN}Running makemigrations...${NC}"
+                    docker-compose exec "$service" uv run python manage.py makemigrations
+                    echo ""
+                    echo -e "${GREEN}✓ Migrations created${NC}"
+                    echo -e "${YELLOW}⚠ Review the migration files, then commit them to git${NC}"
+                    echo ""
+                    read -p "Press Enter to continue..."
+                fi
+                break
+                ;;
+        esac
+    done
 }
 
 create_superuser() {
@@ -321,14 +340,8 @@ test_endpoints() {
     echo -n "Auth health: "
     curl -s http://localhost/api/auth/health/ | jq -r '.status' 2>/dev/null || echo "failed"
 
-    echo -n "Playlist health: "
-    curl -s http://localhost/api/playlists/health/ | jq -r '.status' 2>/dev/null || echo "failed"
-
-    echo -n "Track health: "
-    curl -s http://localhost/api/tracks/health/ | jq -r '.status' 2>/dev/null || echo "failed"
-
-    echo -n "Search health: "
-    curl -s http://localhost/api/search/health/ | jq -r '.status' 2>/dev/null || echo "failed"
+    echo -n "Core health: "
+    curl -s http://localhost/api/core/health/ | jq -r '.status' 2>/dev/null || echo "failed"
 
     echo -n "Collab health: "
     curl -s http://localhost/api/collab/health/ | jq -r '.status' 2>/dev/null || echo "failed"
@@ -387,9 +400,7 @@ show_urls() {
 
     echo -e "${CYAN}Health Check Endpoints:${NC}"
     echo "  Auth:          http://localhost/api/auth/health/"
-    echo "  Playlist:      http://localhost/api/playlists/health/"
-    echo "  Track:         http://localhost/api/tracks/health/"
-    echo "  Search:        http://localhost/api/search/health/"
+    echo "  Core:          http://localhost/api/core/health/ (covers playlists, tracks, search)"
     echo "  Collaboration: http://localhost/api/collab/health/"
     echo ""
 
@@ -521,15 +532,16 @@ main() {
             6) view_logs_service ;;
             7) health_check_all ;;
             8) health_check_service ;;
-            9) run_migrations ;;
-            10) create_superuser ;;
-            11) access_shell ;;
-            12) rebuild_service ;;
-            13) test_endpoints ;;
-            14) clean_restart ;;
-            15) show_urls ;;
-            16) database_operations ;;
-            17) update_restart ;;
+            9) make_migrations ;;
+            10) run_migrations ;;
+            11) create_superuser ;;
+            12) access_shell ;;
+            13) rebuild_service ;;
+            14) test_endpoints ;;
+            15) clean_restart ;;
+            16) show_urls ;;
+            17) database_operations ;;
+            18) update_restart ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"
