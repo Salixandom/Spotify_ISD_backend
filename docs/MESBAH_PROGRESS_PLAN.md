@@ -437,8 +437,10 @@ service at `services/collaboration/shareapp/`.
 
 ## 5. Commit Plan
 
-Total commits: 4.
-Commit 1 is the foundation. Commits 2–4 each own exactly one service.
+Total commits: 3.
+Commit 1 is the foundation. Commit 2 covers both core and collaboration
+service schema updates (original Commits 2 and 3 merged into one).
+Commit 3 is integration, cleanup, and documentation.
 The auth service has no schema changes and does not get its own commit.
 
 NO git commands are issued by the assistant. All git operations are done by Mesbah.
@@ -450,7 +452,7 @@ NO git commands are issued by the assistant. All git operations are done by Mesb
 **Scope:** Create the authoritative SCHEMA.md and introduce the two new apps
 (historyapp, shareapp) fully implemented from day one. These apps are created
 here rather than later because they have no dependency on the model changes
-coming in Commits 2–3 beyond the existing Song model.
+coming in Commit 2 beyond the existing Song model.
 
 **Commit message:** `feat(docs+apps): add SCHEMA.md, historyapp in core, shareapp in collaboration`
 
@@ -510,14 +512,21 @@ services/collaboration/core/urls.py        add path('api/share/', include('share
 
 ---
 
-### COMMIT 2 — Core Service Schema Update
+### COMMIT 2 — Core Service + Collaboration Service Schema Update
 
-**Scope:** All schema changes in the core service. Three Django apps are
-updated (searchapp, playlistapp, trackapp). The historyapp created in Commit 1
-gains a correct migration dependency on the updated Song model. All new
-serializers, views, and URLs are written in this commit.
+**Scope:** All schema changes across both the core service and the
+collaboration service. This commit merges what was originally planned as
+separate Commits 2 and 3 into a single commit.
 
-**Commit message:** `feat(core): update searchapp (Artist/Album/Song), playlistapp (cover/max_songs), trackapp (Song FK on Track)`
+**Core side:** Three Django apps updated (searchapp, playlistapp, trackapp).
+The historyapp created in Commit 1 gains a correct migration dependency on
+the updated Song model. All new serializers, views, and URLs are written.
+
+**Collaboration side:** collabapp models updated (Collaborator role removed,
+InviteLink is_valid added, indexes added). New endpoints added. The shareapp
+created in Commit 1 is verified and any corrections applied.
+
+**Commit message:** `feat(core+collab): update searchapp/playlistapp/trackapp schemas and collabapp models, add new endpoints`
 
 **DB note:** If migrations from Commit 1 or before were already applied,
 run `docker-compose down -v` before applying this commit to get a fresh DB.
@@ -645,14 +654,6 @@ services/core/historyapp/migrations/0001_initial.py
 
 ---
 
-### COMMIT 3 — Collaboration Service Schema Update
-
-**Scope:** All schema changes in the collaboration service. The collabapp
-models are updated (Collaborator, InviteLink). The shareapp created in
-Commit 1 is verified and any corrections applied. New endpoints are added.
-
-**Commit message:** `feat(collab): remove role from Collaborator, add is_valid to InviteLink, add my-collaborations and deactivate endpoints`
-
 #### collabapp Changes
 
 ```
@@ -708,11 +709,11 @@ services/collaboration/shareapp/
 ```
 - Verify all files from Commit 1 are correct
 - Apply any corrections to models, serializers, views, urls identified
-  during Commit 3 work
+  during Commit 2 work
 
 ---
 
-### COMMIT 4 — Integration, Cleanup, and Documentation Update
+### COMMIT 3 — Integration, Cleanup, and Documentation Update
 
 **Scope:** Cross-cutting verification. Ensure all services start cleanly,
 all health checks pass, no import errors remain, and all documentation
@@ -786,14 +787,14 @@ AUTH files are omitted — no changes to the auth service.
 | `services/core/trackapp/serializers.py` | 2 | OVERWRITE |
 | `services/core/trackapp/views.py` | 2 | OVERWRITE |
 | `services/core/trackapp/migrations/0001_initial.py` | 2 | REPLACE |
-| `services/collaboration/collabapp/models.py` | 3 | MODIFY |
-| `services/collaboration/collabapp/serializers.py` | 3 | MODIFY |
-| `services/collaboration/collabapp/views.py` | 3 | MODIFY |
-| `services/collaboration/collabapp/urls.py` | 3 | MODIFY |
-| `services/collaboration/collabapp/migrations/0001_initial.py` | 3 | REPLACE |
-| `docs/AGENT-GUIDE.md` | 4 | MODIFY |
-| `docs/MIGRATION-WORKFLOW.md` | 4 | MODIFY |
-| `docs/CONTRIBUTING.md` | 4 | MODIFY |
+| `services/collaboration/collabapp/models.py` | 2 | MODIFY |
+| `services/collaboration/collabapp/serializers.py` | 2 | MODIFY |
+| `services/collaboration/collabapp/views.py` | 2 | MODIFY |
+| `services/collaboration/collabapp/urls.py` | 2 | MODIFY |
+| `services/collaboration/collabapp/migrations/0001_initial.py` | 2 | REPLACE |
+| `docs/AGENT-GUIDE.md` | 3 | MODIFY |
+| `docs/MIGRATION-WORKFLOW.md` | 3 | MODIFY |
+| `docs/CONTRIBUTING.md` | 3 | MODIFY |
 
 ---
 
@@ -948,5 +949,5 @@ Every future coding session MUST follow this order:
 
 ---
 
-**Last updated:** 2026-03-26
-**Status:** PLAN COMPLETE — ready to begin Commit 1 Part A (SCHEMA.md) in next session
+**Last updated:** 2026-03-27
+**Status:** Commit 1 DONE — ready to begin Commit 2 (core + collaboration schema update)

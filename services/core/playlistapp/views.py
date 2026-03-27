@@ -5,13 +5,24 @@ from django.db import connection
 from .models import Playlist
 from .serializers import PlaylistSerializer
 
+PLAYLIST_SORT_MAP = {
+    'name':       'name',
+    'created_at': 'created_at',
+    'updated_at': 'updated_at',
+}
+
 
 class PlaylistViewSet(viewsets.ModelViewSet):
-    serializer_class = PlaylistSerializer
+    serializer_class   = PlaylistSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Playlist.objects.filter(owner_id=self.request.user.id)
+        sort  = self.request.query_params.get('sort', 'updated_at')
+        order = self.request.query_params.get('order', 'desc')
+        order_field = PLAYLIST_SORT_MAP.get(sort, 'updated_at')
+        if order == 'desc':
+            order_field = '-' + order_field
+        return Playlist.objects.filter(owner_id=self.request.user.id).order_by(order_field)
 
     def perform_create(self, serializer):
         serializer.save(owner_id=self.request.user.id)
@@ -19,42 +30,34 @@ class PlaylistViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response(
-                {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response(
-                {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
 
-from rest_framework.decorators import api_view, permission_classes
-
-
-@api_view(["GET"])
+@api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def health_check(request):
-    """Health check endpoint"""
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             cursor.fetchone()
         return Response(
-            {"status": "healthy", "service": "playlist", "database": "connected"},
+            {'status': 'healthy', 'service': 'playlist', 'database': 'connected'},
             status=200,
         )
     except Exception as e:
         return Response(
             {
-                "status": "unhealthy",
-                "service": "playlist",
-                "database": "disconnected",
-                "error": str(e),
+                'status': 'unhealthy',
+                'service': 'playlist',
+                'database': 'disconnected',
+                'error': str(e),
             },
             status=503,
         )
