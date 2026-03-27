@@ -78,14 +78,13 @@ class CollaboratorListView(APIView):
         return Response(CollaboratorSerializer(collabs, many=True).data)
 
     def delete(self, request, playlist_id):
-        # TODO: Verify requester is playlist owner or admin.
-        # Currently any authenticated user can remove any collaborator from any playlist.
-        # A proper fix requires a cross-service call to the core service to confirm
-        # request.user.id matches the playlist's owner_id.
-        # Example: Check if request.user.id is the playlist owner
-        # if not is_playlist_owner(request.user.id, playlist_id):
-        #     return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        # Quick mitigation: users may only remove themselves from a playlist.
+        # A full fix (allowing the playlist owner to remove any collaborator) requires
+        # a cross-service call to the core service to verify playlist ownership, which
+        # is out of scope for this iteration.
         user_id = request.query_params.get('user_id')
+        if str(user_id) != str(request.user.id):
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
         Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
