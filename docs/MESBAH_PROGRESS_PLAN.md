@@ -713,38 +713,153 @@ services/collaboration/shareapp/
 
 ---
 
-### COMMIT 3 — Integration, Cleanup, and Documentation Update
+### COMMIT 3 — Expiry Defaults, Endpoint Removal, Cleanup, and Documentation Update
 
-**Scope:** Cross-cutting verification. Ensure all services start cleanly,
-all health checks pass, no import errors remain, and all documentation
-reflects the final state.
+**Scope:** Two categories of work in one commit.
 
-**Commit message:** `chore: integration cleanup, verify all services, update agent and migration docs`
+**Category A — InviteLink and ShareLink behaviour change:**
+Both token models previously had an optional `expires_at` field. The design
+is now finalised: links expire automatically after 30 days from creation.
+Manual deactivation via an API endpoint is removed entirely.
 
-Tasks:
-- Verify INSTALLED_APPS is correct in all 3 service settings files
-- Verify all urls.py route patterns are complete and correct
-- Verify all migration dependency chains are valid:
-  - Core: searchapp → playlistapp → trackapp (depends on both Playlist and Song)
-                                 → historyapp (depends on Song)
-  - Collaboration: collabapp, shareapp (independent)
-- Remove any dead code referencing the old flat Track fields
-- Run flake8 on all services: `flake8 services/<svc>/ --select=E9,F63,F7,F82`
-- Verify Docker builds succeed for all 3 services
-- Update documentation files:
-  - `docs/AGENT-GUIDE.md` — update service architecture section
-    (add historyapp, shareapp, new endpoints)
-  - `docs/MIGRATION-WORKFLOW.md` — add note about DB reset requirement,
-    update migration order commands for all apps
-  - `docs/CONTRIBUTING.md` — update service-specific guidelines with
-    new app responsibilities
+- `InviteLink.expires_at` — changed from `null=True, blank=True` to
+  `default=default_expires_at` (30 days from now). Non-nullable.
+- `ShareLink.expires_at` — same change.
+- `InviteLink.is_valid` — simplified to `is_active and now <= expires_at`.
+- `ShareLink.is_valid` — same simplification.
+- `DeactivateInviteView` removed from collabapp views and urls.
+- `DeactivateShareLinkView` removed from shareapp views and urls.
 
-Files to MODIFY:
+**Category B — Integration, cleanup, and documentation:**
+Cross-cutting verification and documentation update to reflect the final
+state of the codebase after all schema work.
+
+**Commit message:** `feat(collab+core): auto-expire links after 30 days, fix trackapp races and reorder-remove, playlistapp field fixes, regenerate all migrations; update docs`
+
+#### Category A — collabapp Changes
+
+```
+services/collaboration/collabapp/models.py
+```
+- ADD `default_expires_at()` function: `timezone.now() + timedelta(days=30)`
+- CHANGE `InviteLink.expires_at`: remove `null=True, blank=True`,
+  add `default=default_expires_at`
+- SIMPLIFY `InviteLink.is_valid`: `return self.is_active and timezone.now() <= self.expires_at`
+
+```
+services/collaboration/collabapp/views.py
+```
+- REMOVE `DeactivateInviteView` class entirely
+
+```
+services/collaboration/collabapp/urls.py
+```
+- REMOVE `<int:playlist_id>/invite/deactivate/` route and import
+
+```
+services/collaboration/collabapp/migrations/0001_initial.py
+```
+- REPLACE: `expires_at` is now `DateTimeField(default=default_expires_at)`,
+  no longer nullable
+
+#### Category A — shareapp Changes
+
+```
+services/collaboration/shareapp/models.py
+```
+- ADD `default_expires_at()` function (same as collabapp)
+- CHANGE `ShareLink.expires_at`: same change as InviteLink
+- SIMPLIFY `ShareLink.is_valid`: same simplification
+
+```
+services/collaboration/shareapp/views.py
+```
+- REMOVE `DeactivateShareLinkView` class entirely
+
+```
+services/collaboration/shareapp/urls.py
+```
+- REMOVE `<int:playlist_id>/deactivate/` route and import
+
+```
+services/collaboration/shareapp/migrations/0001_initial.py
+```
+- REPLACE: `expires_at` is now `DateTimeField(default=default_expires_at)`
+
+#### Category B — Core Service Bug Fixes & Model Corrections
+
+```
+services/core/playlistapp/models.py
+```
+- CHANGE `description`: add `blank=True` (was `default=''` only — DRF form validation
+  would reject empty string without blank=True)
+- CHANGE `max_songs`: `IntegerField` → `PositiveIntegerField` (negative values are invalid)
+
+```
+services/core/trackapp/models.py
+```
+- ADD comment block on Meta class explaining the (playlist, position) index role
+  and the unique constraint's purpose in the reorder-remove workflow
+
+```
+services/core/trackapp/views.py
+```
+- WRAP `TrackListView.post()` in `transaction.atomic()` with
+  `Playlist.objects.select_for_update()` to prevent race conditions on concurrent
+  add-track requests. Add `IntegrityError` catch as a safety net.
+- RENAME `TrackReorderView` → `TrackReorderRemoveView`; implement reorder-remove:
+  tracks absent from the submitted `track_ids` list are deleted atomically before
+  positions are reassigned.
+
+```
+services/core/trackapp/urls.py
+```
+- UPDATE import and route to reference `TrackReorderRemoveView`
+
+```
+services/collaboration/collabapp/views.py
+```
+- ADD TODO comment block on `CollaboratorListView.delete()` documenting the missing
+  owner/admin authorization check and cross-service verification requirement
+
+#### Category C — Migration Regeneration
+
+```
+services/core/searchapp/migrations/0001_initial.py         (deleted + regenerated)
+services/core/playlistapp/migrations/0001_initial.py       (deleted + regenerated)
+services/core/trackapp/migrations/0001_initial.py          (deleted + regenerated)
+services/core/historyapp/migrations/0001_initial.py        (deleted + regenerated)
+services/collaboration/collabapp/migrations/0001_initial.py (deleted + regenerated)
+services/collaboration/shareapp/migrations/0001_initial.py  (deleted + regenerated)
+```
+All handwritten migration files were deleted and regenerated via
+`docker-compose exec <svc> uv run python manage.py makemigrations <app>`
+to ensure migrations are always auto-generated and consistent with the models,
+not hand-maintained.
+
+#### Category D — Documentation Updates
+
 ```
 docs/AGENT-GUIDE.md
+```
+- Update service architecture section: add historyapp and shareapp to core/collab
+  directory trees with descriptions
+- Update health check commands: add search, history, share endpoints
+- Update recommended reading order: point to latest session + SCHEMA.md
+
+```
 docs/MIGRATION-WORKFLOW.md
+```
+- ADD "Schema Overhaul: DB Reset Requirement" section explaining when and
+  how to reset the DB, with explicit migration order commands for core service
+
+```
 docs/CONTRIBUTING.md
 ```
+- REWRITE service-specific guidelines:
+  - Auth: JWT + built-in User note
+  - Core: table of all 4 apps with responsibilities; naming convention reminder
+  - Collaboration: table of both apps; 30-day expiry note; is_valid usage rule
 
 ---
 
@@ -792,6 +907,22 @@ AUTH files are omitted — no changes to the auth service.
 | `services/collaboration/collabapp/views.py` | 2 | MODIFY |
 | `services/collaboration/collabapp/urls.py` | 2 | MODIFY |
 | `services/collaboration/collabapp/migrations/0001_initial.py` | 2 | REPLACE |
+| `services/collaboration/collabapp/models.py` | 3 | MODIFY (expires_at default, is_valid simplified) |
+| `services/collaboration/collabapp/views.py` | 3 | MODIFY (remove DeactivateInviteView; add TODO on delete auth) |
+| `services/collaboration/collabapp/urls.py` | 3 | MODIFY (remove deactivate route) |
+| `services/collaboration/collabapp/migrations/0001_initial.py` | 3 | REGENERATED |
+| `services/collaboration/shareapp/models.py` | 3 | MODIFY (expires_at default, is_valid simplified) |
+| `services/collaboration/shareapp/views.py` | 3 | MODIFY (remove DeactivateShareLinkView) |
+| `services/collaboration/shareapp/urls.py` | 3 | MODIFY (remove deactivate route) |
+| `services/collaboration/shareapp/migrations/0001_initial.py` | 3 | REGENERATED |
+| `services/core/playlistapp/models.py` | 3 | MODIFY (description blank=True; max_songs PositiveIntegerField) |
+| `services/core/playlistapp/migrations/0001_initial.py` | 3 | REGENERATED |
+| `services/core/trackapp/models.py` | 3 | MODIFY (Meta comment) |
+| `services/core/trackapp/views.py` | 3 | MODIFY (transaction.atomic + TrackReorderRemoveView) |
+| `services/core/trackapp/urls.py` | 3 | MODIFY (import rename) |
+| `services/core/trackapp/migrations/0001_initial.py` | 3 | REGENERATED |
+| `services/core/searchapp/migrations/0001_initial.py` | 3 | REGENERATED |
+| `services/core/historyapp/migrations/0001_initial.py` | 3 | REGENERATED |
 | `docs/AGENT-GUIDE.md` | 3 | MODIFY |
 | `docs/MIGRATION-WORKFLOW.md` | 3 | MODIFY |
 | `docs/CONTRIBUTING.md` | 3 | MODIFY |
@@ -877,8 +1008,8 @@ def is_valid(self):
     if not self.is_active:
         return False
     if self.expires_at and timezone.now() > self.expires_at:
-        return False
-    return True
+        return False  # Commit 2 of Mesbah — null guard present; expires_at was optional
+    return True       # Commit 3 of Mesbah — simplified: null guard removed, expires_at always set
 ```
 
 Expose in serializer via SerializerMethodField:
@@ -950,4 +1081,4 @@ Every future coding session MUST follow this order:
 ---
 
 **Last updated:** 2026-03-27
-**Status:** Commit 1 DONE — ready to begin Commit 2 (core + collaboration schema update)
+**Status:** ALL COMMITS DONE — schema overhaul complete

@@ -7,7 +7,7 @@ class Playlist(models.Model):
 
     owner_id      = models.IntegerField()
     name          = models.CharField(max_length=255)
-    description   = models.TextField(default='')
+    description   = models.TextField(blank=True, default='')
     visibility    = models.CharField(
                         max_length=10,
                         choices=VISIBILITY_CHOICES,
@@ -19,7 +19,7 @@ class Playlist(models.Model):
                         default='solo'
                     )
     cover_url     = models.URLField(max_length=500, blank=True, default='')
-    max_songs     = models.IntegerField(default=0)
+    max_songs     = models.PositiveIntegerField(default=0)
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
 

@@ -19,6 +19,10 @@ class Track(models.Model):
     added_at    = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        # unique_together on (playlist, song) prevents the same song appearing twice.
+        # The (playlist, position) index also enforces ordering integrity: after every
+        # reorder-remove save, positions are reassigned as a contiguous 0-based sequence,
+        # so this index doubles as a fast ordering lookup.
         unique_together = ('playlist', 'song')
         ordering        = ['position']
         indexes         = [

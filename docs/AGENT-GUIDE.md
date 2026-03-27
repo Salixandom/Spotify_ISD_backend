@@ -1,7 +1,7 @@
 # AI Agent Guide: Spotify ISD Backend
 
 **Purpose**: Quick reference for AI agents working on this codebase
-**Last Updated**: March 26, 2026
+**Last Updated**: March 27, 2026
 **Project Stack**: Django 4.2, Docker, PostgreSQL/Supabase, microservices architecture
 
 ---
@@ -110,9 +110,10 @@ spotify-collab/
 │   │   ├── core/
 │   │   │   ├── settings.py
 │   │   │   └── ...
-│   │   ├── playlistapp/              # Django app
-│   │   ├── trackapp/                 # Django app
-│   │   ├── searchapp/                # Django app
+│   │   ├── playlistapp/              # Playlists (cover_url, max_songs, sort support)
+│   │   ├── trackapp/                 # Tracks — FK to Playlist+Song, nested serializer
+│   │   ├── searchapp/                # Artist, Album, Song — full FK schema
+│   │   ├── historyapp/               # Play events — recently played endpoint
 │   │   ├── manage.py
 │   │   ├── pyproject.toml
 │   │   └── .env / .env.example
@@ -123,7 +124,8 @@ spotify-collab/
 │       ├── core/
 │       │   ├── settings.py
 │       │   └── ...
-│       ├── collabapp/                # Django app
+│       ├── collabapp/                # Collaborators + InviteLinks (30-day expiry)
+│       ├── shareapp/                 # ShareLinks (30-day expiry, view-only access)
 │       ├── manage.py
 │       ├── pyproject.toml
 │       └── .env / .env.example
@@ -133,7 +135,9 @@ spotify-collab/
 ├── render.yaml                        # Render deployment (Supabase)
 ├── manage.sh                           # Interactive management CLI
 └── docs/
-    ├── SESSION-2026-03-26 4.md        # Latest session (this work)
+    ├── SESSION-2026-03-27 3.md        # Latest session
+    ├── SCHEMA.md                      # Final database schema (all 10 tables)
+    ├── MESBAH_PROGRESS_PLAN.md        # Schema overhaul commit plan
     ├── MIGRATION-WORKFLOW.md          # Migration guide
     └── SUPABASE-MIGRATION.md          # Supabase guide
 ```
@@ -197,6 +201,9 @@ docker-compose ps
 curl http://localhost/api/auth/health/
 curl http://localhost/api/core/health/
 curl http://localhost/api/collab/health/
+curl http://localhost/api/search/health/
+curl http://localhost/api/history/health/
+curl http://localhost/api/share/health/
 ```
 
 ### Task 4: Accessing Django Shell
@@ -678,11 +685,12 @@ curl http://localhost/api/collab/health/
 
 ## 📖 Recommended Reading Order for New Agents
 
-1. **Latest session doc** - `docs/SESSION-2026-03-26 4.md`
-2. **This file** - Get familiar with command patterns
-3. **Migration workflow** - `docs/MIGRATION-WORKFLOW.md`
-4. **Supabase guide** - `docs/SUPABASE-MIGRATION.md` (if working on database)
-5. **Previous sessions** - Check 2-3 most recent for context
+1. **Latest session doc** - `docs/SESSION-2026-03-27 3.md`
+2. **Schema reference** - `docs/SCHEMA.md` (all 10 tables, API responses, business rules)
+3. **This file** - Get familiar with command patterns
+4. **Migration workflow** - `docs/MIGRATION-WORKFLOW.md`
+5. **Supabase guide** - `docs/SUPABASE-MIGRATION.md` (if working on database)
+6. **Previous sessions** - Check 2-3 most recent for context
 
 ---
 

@@ -78,6 +78,13 @@ class CollaboratorListView(APIView):
         return Response(CollaboratorSerializer(collabs, many=True).data)
 
     def delete(self, request, playlist_id):
+        # TODO: Verify requester is playlist owner or admin.
+        # Currently any authenticated user can remove any collaborator from any playlist.
+        # A proper fix requires a cross-service call to the core service to confirm
+        # request.user.id matches the playlist's owner_id.
+        # Example: Check if request.user.id is the playlist owner
+        # if not is_playlist_owner(request.user.id, playlist_id):
+        #     return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
         user_id = request.query_params.get('user_id')
         Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -105,17 +112,3 @@ class MyRoleView(APIView):
         return Response({'role': 'collaborator'})
 
 
-class DeactivateInviteView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def delete(self, request, playlist_id):
-        updated = InviteLink.objects.filter(
-            playlist_id=playlist_id,
-            is_active=True,
-        ).update(is_active=False)
-        if updated == 0:
-            return Response(
-                {'error': 'No active invite link found'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        return Response(status=status.HTTP_204_NO_CONTENT)

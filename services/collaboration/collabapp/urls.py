@@ -6,7 +6,6 @@ from .views import (
     HealthCheckView,
     MyCollaborationsView,
     MyRoleView,
-    DeactivateInviteView,
 )
 
 urlpatterns = [
@@ -16,5 +15,4 @@ urlpatterns = [
     path('<int:playlist_id>/members/', CollaboratorListView.as_view()),
     path('my-collaborations/', MyCollaborationsView.as_view()),
     path('<int:playlist_id>/my-role/', MyRoleView.as_view()),
-    path('<int:playlist_id>/invite/deactivate/', DeactivateInviteView.as_view()),
 ]

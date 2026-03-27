@@ -113,6 +113,54 @@ docker-compose exec collaboration uv run python manage.py migrate
 
 ---
 
+## Schema Overhaul: DB Reset Requirement
+
+The searchapp `Song` table and trackapp `Track` table were fundamentally
+restructured in Commit 2. Django cannot auto-generate a forward migration from
+the old flat schema to the new FK-based schema. **A fresh database is required
+before running the new migrations.**
+
+### When to reset
+
+Reset is needed if any migrations from before Commit 2 were ever applied
+(i.e. the old flat `searchapp_song` or `trackapp_track` tables exist in the DB).
+
+### How to reset
+
+```bash
+docker-compose down -v      # drops all volumes — ALL data is lost
+docker-compose up -d        # fresh DB; entrypoints auto-run all migrations
+```
+
+### Migration order within the core service
+
+The dependency chain must be respected. Django handles this automatically
+when `migrate` is run, but for reference:
+
+```
+searchapp  (Artist → Album → Song)   — no external deps
+playlistapp (Playlist)               — no external deps
+trackapp   (Track)                   — depends on BOTH searchapp + playlistapp
+historyapp (Play)                    — depends on searchapp only
+```
+
+Explicit `makemigrations` order (if ever regenerating from scratch):
+```bash
+docker-compose exec core uv run python manage.py makemigrations searchapp
+docker-compose exec core uv run python manage.py makemigrations playlistapp
+docker-compose exec core uv run python manage.py makemigrations trackapp
+docker-compose exec core uv run python manage.py makemigrations historyapp
+docker-compose exec core uv run python manage.py migrate
+```
+
+The collaboration service apps (`collabapp`, `shareapp`) have no inter-app
+dependencies and can be migrated in any order:
+```bash
+docker-compose exec collaboration uv run python manage.py migrate
+```
+
+---
+
 ## Troubleshooting
 
 ### Migrations fail to apply
