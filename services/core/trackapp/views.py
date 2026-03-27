@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from django.db import connection
+from django.db import connection, transaction, IntegrityError
 from playlistapp.models import Playlist
 from searchapp.models import Song
 from .models import Track
@@ -38,11 +38,6 @@ class TrackListView(APIView):
         return Response(TrackSerializer(tracks, many=True).data)
 
     def post(self, request, playlist_id):
-        try:
-            playlist = Playlist.objects.get(id=playlist_id)
-        except Playlist.DoesNotExist:
-            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
-
         song_id = request.data.get('song_id')
         if not song_id:
             return Response({'error': 'song_id required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -52,29 +47,43 @@ class TrackListView(APIView):
         except Song.DoesNotExist:
             return Response({'error': 'Song not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if Track.objects.filter(playlist=playlist, song=song).exists():
-            return Response(
-                {'error': 'Song already in playlist'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Wrap add-track in a transaction with row locking to prevent race conditions.
+        # select_for_update() locks the playlist row so two concurrent requests cannot
+        # both pass the exists()/count() pre-checks and then collide on the DB constraint.
+        # The outer IntegrityError catch handles any remaining race that slips through.
+        try:
+            with transaction.atomic():
+                playlist = Playlist.objects.select_for_update().get(id=playlist_id)
 
-        if playlist.max_songs > 0:
-            count = Track.objects.filter(playlist=playlist).count()
-            if count >= playlist.max_songs:
-                return Response(
-                    {'error': 'playlist_song_limit_reached', 'max_songs': playlist.max_songs},
-                    status=status.HTTP_400_BAD_REQUEST,
+                if Track.objects.filter(playlist=playlist, song=song).exists():
+                    return Response(
+                        {'error': 'Song already in playlist'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if playlist.max_songs > 0:
+                    count = Track.objects.filter(playlist=playlist).count()
+                    if count >= playlist.max_songs:
+                        return Response(
+                            {'error': 'playlist_song_limit_reached', 'max_songs': playlist.max_songs},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                last = Track.objects.filter(playlist=playlist).order_by('-position').first()
+                position = (last.position + 1) if last else 0
+
+                track = Track.objects.create(
+                    playlist=playlist,
+                    song=song,
+                    added_by_id=request.user.id,
+                    position=position,
                 )
+        except Playlist.DoesNotExist:
+            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            # Race condition: two concurrent requests both passed the exists() check
+            return Response({'error': 'Song already in playlist'}, status=status.HTTP_400_BAD_REQUEST)
 
-        last = Track.objects.filter(playlist=playlist).order_by('-position').first()
-        position = (last.position + 1) if last else 0
-
-        track = Track.objects.create(
-            playlist=playlist,
-            song=song,
-            added_by_id=request.user.id,
-            position=position,
-        )
         return Response(TrackSerializer(track).data, status=status.HTTP_201_CREATED)
 
 
@@ -90,13 +99,26 @@ class TrackDetailView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class TrackReorderView(APIView):
+class TrackReorderRemoveView(APIView):
+    """
+    PUT /<playlist_id>/reorder/  body: {"track_ids": [id, id, ...]}
+
+    Reorder-remove: the client sends the final desired ordered list of track IDs.
+    Any tracks currently in the playlist that are absent from track_ids are deleted.
+    Remaining tracks are assigned positions 0, 1, 2, ... matching the sent order.
+    This handles the case where the user removes tracks while reordering and clicks save.
+    Both operations happen atomically.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request, playlist_id):
         ordered_ids = request.data.get('track_ids', [])
-        for index, track_id in enumerate(ordered_ids):
-            Track.objects.filter(id=track_id, playlist_id=playlist_id).update(position=index)
+        with transaction.atomic():
+            # Delete tracks not present in the new ordered list (reorder-remove)
+            Track.objects.filter(playlist_id=playlist_id).exclude(id__in=ordered_ids).delete()
+            # Reassign positions to match the submitted order
+            for index, track_id in enumerate(ordered_ids):
+                Track.objects.filter(id=track_id, playlist_id=playlist_id).update(position=index)
         return Response({'status': 'reordered'})
 
 

@@ -1,6 +1,11 @@
 import uuid
+from datetime import timedelta
 from django.db import models
 from django.utils import timezone
+
+
+def default_expires_at():
+    return timezone.now() + timedelta(days=30)
 
 
 class Collaborator(models.Model):
@@ -25,7 +30,7 @@ class InviteLink(models.Model):
     created_by_id = models.IntegerField()
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)
-    expires_at    = models.DateTimeField(null=True, blank=True)
+    expires_at    = models.DateTimeField(default=default_expires_at)
 
     class Meta:
         indexes = [
@@ -35,11 +40,7 @@ class InviteLink(models.Model):
 
     @property
     def is_valid(self):
-        if not self.is_active:
-            return False
-        if self.expires_at and timezone.now() > self.expires_at:
-            return False
-        return True
+        return self.is_active and timezone.now() <= self.expires_at
 
     def __str__(self):
         return f"InviteLink {self.token} for playlist {self.playlist_id}"
