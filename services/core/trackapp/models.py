@@ -1,20 +1,31 @@
 from django.db import models
+from playlistapp.models import Playlist
+from searchapp.models import Song
 
 
 class Track(models.Model):
-    playlist_id = models.IntegerField()
+    playlist    = models.ForeignKey(
+                      Playlist,
+                      on_delete=models.CASCADE,
+                      related_name='tracks'
+                  )
+    song        = models.ForeignKey(
+                      Song,
+                      on_delete=models.CASCADE,
+                      related_name='playlist_entries'
+                  )
     added_by_id = models.IntegerField()
-    title = models.CharField(max_length=255)
-    artist = models.CharField(max_length=255)
-    album = models.CharField(max_length=255, blank=True)
-    duration_seconds = models.IntegerField(default=0)
-    cover_url = models.URLField(blank=True)
-    audio_url = models.URLField(blank=True)
-    position = models.IntegerField(default=0)
-    added_at = models.DateTimeField(auto_now_add=True)
+    position    = models.IntegerField(default=0)
+    added_at    = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["position"]
+        unique_together = ('playlist', 'song')
+        ordering        = ['position']
+        indexes         = [
+            models.Index(fields=['playlist', 'position']),
+            models.Index(fields=['playlist', 'added_at']),
+            models.Index(fields=['added_by_id']),
+        ]
 
     def __str__(self):
-        return f"{self.title} - {self.artist}"
+        return f"{self.song.title} in {self.playlist.name} @ pos {self.position}"

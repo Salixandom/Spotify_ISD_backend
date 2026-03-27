@@ -37,12 +37,9 @@ class RecentPlaysView(APIView):
         seen = set()
         recent = []
 
-        # select_related('song') is sufficient for the current flat Song model.
-        # After Commit 2 adds Artist/Album FKs to Song, update this line to:
-        # .select_related('song', 'song__artist', 'song__album')
         plays = (
             Play.objects.filter(user_id=request.user.id)
-            .select_related("song")
+            .select_related("song", "song__artist", "song__album")
             .order_by("-played_at")
         )
 
