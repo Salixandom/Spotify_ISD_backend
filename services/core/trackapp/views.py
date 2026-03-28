@@ -3,9 +3,9 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from django.db import connection, transaction, IntegrityError
-from playlistapp.models import Playlist
+from playlistapp.models import Playlist, UserPlaylistArchive
 from searchapp.models import Song
-from .models import Track
+from .models import Track, UserTrackHide
 from .serializers import TrackSerializer
 
 TRACK_SORT_MAP = {
@@ -32,6 +32,7 @@ class TrackListView(APIView):
 
         tracks = (
             Track.objects.filter(playlist_id=playlist_id)
+            .exclude(hidden_by__user_id=request.user.id)
             .select_related('song', 'song__artist', 'song__album')
             .order_by(order_field)
         )
@@ -120,6 +121,53 @@ class TrackReorderRemoveView(APIView):
             for index, track_id in enumerate(ordered_ids):
                 Track.objects.filter(id=track_id, playlist_id=playlist_id).update(position=index)
         return Response({'status': 'reordered'})
+
+
+class TrackRemoveView(APIView):
+    """DELETE /<playlist_id>/remove/  body: {"track_ids": [1, 2, 3]}
+    Removes specific tracks from a playlist without reordering remaining tracks."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, playlist_id):
+        track_ids = request.data.get('track_ids', [])
+        Track.objects.filter(playlist_id=playlist_id, id__in=track_ids).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PlaylistArchiveView(APIView):
+    """POST   /<playlist_id>/archive/  → archive playlist for requesting user
+    DELETE /<playlist_id>/archive/  → unarchive playlist for requesting user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+        UserPlaylistArchive.objects.get_or_create(user_id=request.user.id, playlist=playlist)
+        return Response({'status': 'archived'})
+
+    def delete(self, request, playlist_id):
+        UserPlaylistArchive.objects.filter(user_id=request.user.id, playlist_id=playlist_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TrackHideView(APIView):
+    """POST   /<playlist_id>/<track_id>/hide/  → hide track for requesting user
+    DELETE /<playlist_id>/<track_id>/hide/  → unhide track for requesting user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id, track_id):
+        try:
+            track = Track.objects.get(id=track_id, playlist_id=playlist_id)
+        except Track.DoesNotExist:
+            return Response({'error': 'Track not found'}, status=status.HTTP_404_NOT_FOUND)
+        UserTrackHide.objects.get_or_create(user_id=request.user.id, track=track)
+        return Response({'status': 'hidden'})
+
+    def delete(self, request, playlist_id, track_id):
+        UserTrackHide.objects.filter(user_id=request.user.id, track_id=track_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])

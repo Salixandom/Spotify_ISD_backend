@@ -34,3 +34,12 @@ class Playlist(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class UserPlaylistArchive(models.Model):
+    user_id     = models.IntegerField()
+    playlist    = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='archived_by')
+    archived_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user_id', 'playlist')

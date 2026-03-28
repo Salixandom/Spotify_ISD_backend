@@ -33,3 +33,12 @@ class Track(models.Model):
 
     def __str__(self):
         return f"{self.song.title} in {self.playlist.name} @ pos {self.position}"
+
+
+class UserTrackHide(models.Model):
+    user_id   = models.IntegerField()
+    track     = models.ForeignKey(Track, on_delete=models.CASCADE, related_name='hidden_by')
+    hidden_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user_id', 'track')
