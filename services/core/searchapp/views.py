@@ -7,6 +7,8 @@ from django.db import connection
 
 from .models import Artist, Album, Song
 from .serializers import ArtistSerializer, AlbumSerializer, SongSerializer
+from playlistapp.models import Playlist
+from playlistapp.serializers import PlaylistSerializer
 
 SONG_SORT_MAP = {
     'title':    'title',
@@ -19,33 +21,39 @@ SONG_SORT_MAP = {
 
 
 class SearchView(APIView):
+    """Unified search across songs, playlists, artists, and albums."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         query = request.query_params.get('q', '')
-        genre = request.query_params.get('genre', '')
-        sort  = request.query_params.get('sort', '')
-        order = request.query_params.get('order', 'asc')
 
-        qs = Song.objects.select_related('artist', 'album')
+        songs = Song.objects.select_related('artist', 'album')
+        playlists = Playlist.objects.filter(visibility='public')
+        artists = Artist.objects.all()
+        albums = Album.objects.select_related('artist')
 
         if query:
-            qs = qs.filter(
+            songs = songs.filter(
                 Q(title__icontains=query)
                 | Q(artist__name__icontains=query)
                 | Q(album__name__icontains=query)
             )
+            playlists = playlists.filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+            )
+            artists = artists.filter(name__icontains=query)
+            albums = albums.filter(
+                Q(name__icontains=query)
+                | Q(artist__name__icontains=query)
+            )
 
-        if genre:
-            qs = qs.filter(genre__iexact=genre)
-
-        if sort in SONG_SORT_MAP:
-            order_field = SONG_SORT_MAP[sort]
-            if order == 'desc':
-                order_field = '-' + order_field
-            qs = qs.order_by(order_field)
-
-        return Response(SongSerializer(qs[:20], many=True).data)
+        return Response({
+            'songs':     SongSerializer(songs[:20], many=True).data,
+            'playlists': PlaylistSerializer(playlists[:20], many=True).data,
+            'artists':   ArtistSerializer(artists[:20], many=True).data,
+            'albums':    AlbumSerializer(albums[:20], many=True).data,
+        })
 
 
 class BrowseView(APIView):
@@ -105,6 +113,58 @@ class AlbumDetailView(APIView):
         except Album.DoesNotExist:
             return Response({'error': 'Album not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(AlbumSerializer(album).data)
+
+
+class SongSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        genre = request.query_params.get('genre', '')
+        sort  = request.query_params.get('sort', '')
+        order = request.query_params.get('order', 'asc')
+
+        qs = Song.objects.select_related('artist', 'album')
+
+        if query:
+            qs = qs.filter(
+                Q(title__icontains=query)
+                | Q(artist__name__icontains=query)
+                | Q(album__name__icontains=query)
+            )
+
+        if genre:
+            qs = qs.filter(genre__iexact=genre)
+
+        if sort in SONG_SORT_MAP:
+            order_field = SONG_SORT_MAP[sort]
+            if order == 'desc':
+                order_field = '-' + order_field
+            qs = qs.order_by(order_field)
+
+        return Response(SongSerializer(qs[:20], many=True).data)
+
+
+class PlaylistSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query        = request.query_params.get('q', '')
+        playlist_type = request.query_params.get('type', '')
+
+        qs = Playlist.objects.filter(visibility='public')
+
+        if query:
+            qs = qs.filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+            )
+
+        if playlist_type in ('solo', 'collaborative'):
+            qs = qs.filter(playlist_type=playlist_type)
+
+        return Response(PlaylistSerializer(qs.order_by('name')[:20], many=True).data)
+
 
 
 @api_view(['GET'])
