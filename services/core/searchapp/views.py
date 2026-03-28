@@ -1,57 +1,130 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import permissions
+from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Q
 from django.db import connection
-from .models import Song
 
-from .serializers import SongSerializer
+from .models import Artist, Album, Song
+from .serializers import ArtistSerializer, AlbumSerializer, SongSerializer
+
+SONG_SORT_MAP = {
+    'title':    'title',
+    'artist':   'artist__name',
+    'album':    'album__name',
+    'genre':    'genre',
+    'duration': 'duration_seconds',
+    'year':     'release_year',
+}
 
 
 class SearchView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        query = request.query_params.get("q", "")
-        if not query:
-            return Response([])
-        results = Song.objects.filter(
-            Q(title__icontains=query)
-            | Q(artist__icontains=query)
-            | Q(album__icontains=query)
-        )[:20]
-        serializer = SongSerializer(results, many=True)
-        return Response(serializer.data)
+        query = request.query_params.get('q', '')
+        genre = request.query_params.get('genre', '')
+        sort  = request.query_params.get('sort', '')
+        order = request.query_params.get('order', 'asc')
+
+        qs = Song.objects.select_related('artist', 'album')
+
+        if query:
+            qs = qs.filter(
+                Q(title__icontains=query)
+                | Q(artist__name__icontains=query)
+                | Q(album__name__icontains=query)
+            )
+
+        if genre:
+            qs = qs.filter(genre__iexact=genre)
+
+        if sort in SONG_SORT_MAP:
+            order_field = SONG_SORT_MAP[sort]
+            if order == 'desc':
+                order_field = '-' + order_field
+            qs = qs.order_by(order_field)
+
+        return Response(SongSerializer(qs[:20], many=True).data)
 
 
 class BrowseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        genres = Song.objects.values_list("genre", flat=True).distinct()
+        genres = (
+            Song.objects.exclude(genre='')
+            .values_list('genre', flat=True)
+            .distinct()
+            .order_by('genre')
+        )
         return Response(list(genres))
 
 
-@api_view(["GET"])
+class ArtistListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        qs = Artist.objects.all()
+        if query:
+            qs = qs.filter(name__icontains=query)
+        return Response(ArtistSerializer(qs.order_by('name'), many=True).data)
+
+
+class ArtistDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, artist_id):
+        try:
+            artist = Artist.objects.get(id=artist_id)
+        except Artist.DoesNotExist:
+            return Response({'error': 'Artist not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ArtistSerializer(artist).data)
+
+
+class AlbumListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        qs = Album.objects.select_related('artist')
+        if query:
+            qs = qs.filter(
+                Q(name__icontains=query) | Q(artist__name__icontains=query)
+            )
+        return Response(AlbumSerializer(qs.order_by('name'), many=True).data)
+
+
+class AlbumDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, album_id):
+        try:
+            album = Album.objects.select_related('artist').get(id=album_id)
+        except Album.DoesNotExist:
+            return Response({'error': 'Album not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(AlbumSerializer(album).data)
+
+
+@api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def health_check(request):
-    """Health check endpoint"""
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")
+            cursor.execute('SELECT 1')
             cursor.fetchone()
         return Response(
-            {"status": "healthy", "service": "search", "database": "connected"},
+            {'status': 'healthy', 'service': 'search', 'database': 'connected'},
             status=200,
         )
     except Exception as e:
         return Response(
             {
-                "status": "unhealthy",
-                "service": "search",
-                "database": "disconnected",
-                "error": str(e),
+                'status': 'unhealthy',
+                'service': 'search',
+                'database': 'disconnected',
+                'error': str(e),
             },
             status=503,
         )

@@ -246,20 +246,33 @@ black --check .
 ## Service-Specific Guidelines
 
 ### Auth Service
-- Handles JWT tokens
-- Manages user sessions
-- **Never commit secret keys**
-- Use environment variables for secrets
+- Handles JWT tokens and user registration
+- **Never commit secret keys** — use environment variables for secrets
+- The Django built-in `User` model is used directly; do not add a custom model
 
-### Core Service
-- Business logic for playlists/tracks
-- Integrates with Spotify API
-- Keep database queries efficient
+### Core Service — 4 Django apps
 
-### Collaboration Service
-- Handles concurrent edits
-- Real-time updates
-- Test race conditions locally
+| App | Responsibility |
+|-----|----------------|
+| `searchapp` | Global music catalog: `Artist`, `Album`, `Song` with full FK relationships |
+| `playlistapp` | User playlists with `cover_url`, `max_songs`, sort support |
+| `trackapp` | Junction table linking Playlist ↔ Song; enforces `max_songs` and `unique_together` |
+| `historyapp` | Per-user play events; drives "recently played" endpoint |
+
+- Cross-service user references (`owner_id`, `added_by_id`, `user_id`) are plain `IntegerField` — **never add ForeignKey to auth_user from core**
+- `Track` (model class) and `trackapp_track` (table) — do not rename to `PlaylistTrack`
+- `Song` (catalog entry) vs `Track` (playlist junction) — these are different things; keep the naming consistent
+
+### Collaboration Service — 2 Django apps
+
+| App | Responsibility |
+|-----|----------------|
+| `collabapp` | `Collaborator` records and `InviteLink` tokens; joining via invite grants edit access |
+| `shareapp` | `ShareLink` tokens; accessing via share link grants view-only access (no Collaborator record created) |
+
+- Invite and share links auto-expire after **30 days** — there is no manual deactivation endpoint
+- `is_valid` property on both `InviteLink` and `ShareLink` checks both `is_active` AND `expires_at` — always use `is_valid` in view logic, never `is_active` alone
+- `playlist_id` and `created_by_id` are plain `IntegerField` — cross-service references, no FK possible
 
 ## Common Issues
 

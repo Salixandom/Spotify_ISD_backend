@@ -16,7 +16,7 @@ def health_check(request):
                 "status": "healthy",
                 "service": "core",
                 "database": "connected",
-                "apps": ["playlist", "track", "search"],
+                "apps": ["playlist", "track", "search", "history"],
             }
         )
     except Exception as e:
@@ -35,5 +35,6 @@ urlpatterns = [
     path("api/playlists/", include("playlistapp.urls")),
     path("api/tracks/", include("trackapp.urls")),
     path("api/search/", include("searchapp.urls")),
+    path("api/history/", include("historyapp.urls")),
     path("api/core/health/", health_check),
 ]
