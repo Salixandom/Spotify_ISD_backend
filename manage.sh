@@ -64,8 +64,8 @@ show_menu() {
     echo -e "  ${CYAN}4.${NC}  Restart all services"
     echo -e "  ${CYAN}5.${NC}  View logs (all services)"
     echo -e "  ${CYAN}6.${NC}  View logs (specific service)"
-    echo -e "  ${CYAN}7.${NC}  Health check (all services)"
-    echo -e "  ${CYAN}8.${NC}  Health check (specific service)"
+    echo -e "  ${CYAN}7.${NC}  Health check (all apps)"
+    echo -e "  ${CYAN}8.${NC}  Health check (specific service/apps)"
     echo -e "  ${CYAN}9.${NC}  Make migrations (create migration files)"
     echo -e "  ${CYAN}10.${NC}  Run migrations (apply to database)"
     echo -e "  ${CYAN}11.${NC}  Create superuser"
@@ -159,13 +159,27 @@ view_logs_service() {
 
 health_check_all() {
     print_header
-    echo -e "${BOLD}Health Check - All Services:${NC}"
+    echo -e "${BOLD}Health Check - All Apps:${NC}"
     echo ""
 
-    echo -e "${YELLOW}Auth Service:${NC}     $(check_health "auth" "http://localhost/api/auth/health/")"
-    echo -e "${YELLOW}Core Service:${NC}      $(check_health "core" "http://localhost/api/core/health/")"
-    echo -e "${YELLOW}Collab Service:${NC}    $(check_health "collaboration" "http://localhost/api/collab/health/")"
-    echo -e "${YELLOW}Traefik Dashboard:${NC} $(check_health "traefik" "http://localhost:8080")"
+    echo -e "${CYAN}Auth Service Apps:${NC}"
+    echo -e "${YELLOW}Auth App:${NC}           $(check_health "auth" "http://localhost/api/auth/health/")"
+    echo ""
+
+    echo -e "${CYAN}Core Service Apps:${NC}"
+    echo -e "${YELLOW}Playlist App:${NC}        $(check_health "playlist" "http://localhost/api/playlists/health/")"
+    echo -e "${YELLOW}Track App:${NC}           $(check_health "track" "http://localhost/api/tracks/health/")"
+    echo -e "${YELLOW}Search App:${NC}          $(check_health "search" "http://localhost/api/search/health/")"
+    echo -e "${YELLOW}History App:${NC}         $(check_health "history" "http://localhost/api/history/health/")"
+    echo ""
+
+    echo -e "${CYAN}Collaboration Service Apps:${NC}"
+    echo -e "${YELLOW}Collab App:${NC}          $(check_health "collab" "http://localhost/api/collab/health/")"
+    echo -e "${YELLOW}Share App:${NC}           $(check_health "share" "http://localhost/api/share/health/")"
+    echo ""
+
+    echo -e "${CYAN}Infrastructure:${NC}"
+    echo -e "${YELLOW}Traefik Dashboard:${NC}   $(check_health "traefik" "http://localhost:8080")"
     echo ""
 
     read -p "Press Enter to continue..."
@@ -190,15 +204,32 @@ health_check_service() {
                     case $service in
                         "auth")
                             check_health "auth" "http://localhost/api/auth/health/"
+                            echo ""
                             curl -s http://localhost/api/auth/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/auth/health/
                             ;;
                         "core")
-                            check_health "core" "http://localhost/api/core/health/"
-                            curl -s http://localhost/api/core/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/core/health/
+                            echo -e "${CYAN}Core Service Apps:${NC}"
+                            echo ""
+                            for app in "playlists" "tracks" "search" "history"; do
+                                echo -ne "${YELLOW}$app:${NC} "
+                                check_health "$app" "http://localhost/api/$app/health/"
+                                curl -s "http://localhost/api/$app/health/" | jq -r '.status' 2>/dev/null || echo "unavailable"
+                            done
+                            echo ""
+                            echo -e "${CYAN}Overall Core Service:${NC}"
+                            curl -s http://localhost/api/core/health/ | jq '.' 2>/dev/null || echo "Service unavailable"
                             ;;
                         "collaboration")
-                            check_health "collaboration" "http://localhost/api/collab/health/"
-                            curl -s http://localhost/api/collab/health/ | jq '.' 2>/dev/null || curl -s http://localhost/api/collab/health/
+                            echo -e "${CYAN}Collaboration Service Apps:${NC}"
+                            echo ""
+                            for app in "collab" "share"; do
+                                echo -ne "${YELLOW}$app:${NC} "
+                                check_health "$app" "http://localhost/api/$app/health/"
+                                curl -s "http://localhost/api/$app/health/" | jq -r '.status' 2>/dev/null || echo "unavailable"
+                            done
+                            echo ""
+                            echo -e "${CYAN}Overall Collaboration Service:${NC}"
+                            curl -s http://localhost/api/collab/health/ | jq '.' 2>/dev/null || echo "Service unavailable"
                             ;;
                     esac
                     echo ""
@@ -367,23 +398,29 @@ show_urls() {
     echo -e "${BOLD}Service URLs:${NC}"
     echo ""
 
-    echo -e "${CYAN}API Endpoints:${NC}"
-    echo "  Auth:          http://localhost/api/auth/"
-    echo "  Playlist:      http://localhost/api/playlists/"
-    echo "  Track:         http://localhost/api/tracks/"
-    echo "  Search:        http://localhost/api/search/"
-    echo "  Collaboration: http://localhost/api/collab/"
+    echo -e "${CYAN}API Endpoints by App:${NC}"
+    echo "  Auth App:           http://localhost/api/auth/"
+    echo "  Playlist App:       http://localhost/api/playlists/"
+    echo "  Track App:          http://localhost/api/tracks/"
+    echo "  Search App:         http://localhost/api/search/"
+    echo "  History App:        http://localhost/api/history/"
+    echo "  Collab App:         http://localhost/api/collab/"
+    echo "  Share App:          http://localhost/api/share/"
+    echo ""
+
+    echo -e "${CYAN}Health Check Endpoints by App:${NC}"
+    echo "  Auth:           http://localhost/api/auth/health/"
+    echo "  Playlist:       http://localhost/api/playlists/health/"
+    echo "  Track:          http://localhost/api/tracks/health/"
+    echo "  Search:         http://localhost/api/search/health/"
+    echo "  History:        http://localhost/api/history/health/"
+    echo "  Collab:         http://localhost/api/collab/health/"
+    echo "  Share:          http://localhost/api/share/health/"
     echo ""
 
     echo -e "${CYAN}Dashboards & Tools:${NC}"
     echo "  Traefik Dashboard:  http://localhost:8080"
     echo "  Database:          localhost:5432"
-    echo ""
-
-    echo -e "${CYAN}Health Check Endpoints:${NC}"
-    echo "  Auth:          http://localhost/api/auth/health/"
-    echo "  Core:          http://localhost/api/core/health/ (covers playlists, tracks, search)"
-    echo "  Collaboration: http://localhost/api/collab/health/"
     echo ""
 
     read -p "Press Enter to continue..."
