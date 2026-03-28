@@ -48,7 +48,7 @@ services:
     env_file:
       - ./services/auth/.env
     environment:
-      - RUN_MIGRATIONS=false  # Core service runs all migrations (shared DB strategy)
+      - RUN_MIGRATIONS=false  # Auth has no models (no migrations needed)
       - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
@@ -69,7 +69,7 @@ services:
     env_file:
       - ./services/core/.env
     environment:
-      - RUN_MIGRATIONS=true  # Core service runs migrations for all services
+      - RUN_MIGRATIONS=true  # Core service runs its own migrations
       - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
@@ -99,7 +99,7 @@ services:
     env_file:
       - ./services/collaboration/.env
     environment:
-      - RUN_MIGRATIONS=false  # Core service runs all migrations (shared DB strategy)
+      - RUN_MIGRATIONS=true  # Each service runs its own migrations (distributed strategy)
       - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
