@@ -20,9 +20,9 @@ class Track(models.Model):
 
     class Meta:
         # unique_together on (playlist, song) prevents the same song appearing twice.
-        # The (playlist, position) index also enforces ordering integrity: after every
-        # reorder-remove save, positions are reassigned as a contiguous 0-based sequence,
-        # so this index doubles as a fast ordering lookup.
+        # The (playlist, position) index is a performance index for fast ordering lookups.
+        # Contiguous 0-based positions are maintained purely by TrackReorderRemoveView logic,
+        # not by any database constraint — models.Index does not enforce uniqueness.
         unique_together = ('playlist', 'song')
         ordering        = ['position']
         indexes         = [

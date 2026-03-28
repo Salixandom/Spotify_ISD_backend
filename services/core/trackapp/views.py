@@ -67,6 +67,9 @@ class TrackListView(APIView):
             with transaction.atomic():
                 playlist = Playlist.objects.select_for_update().get(id=playlist_id)
 
+                if playlist.owner_id != request.user.id:
+                    return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
                 if Track.objects.filter(playlist=playlist, song=song).exists():
                     return Response(
                         {'error': 'Song already in playlist'},
@@ -127,16 +130,39 @@ class TrackReorderRemoveView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request, playlist_id):
-        _, err = _require_playlist_owner(playlist_id, request.user.id)
-        if err:
-            return err
-        ordered_ids = request.data.get('track_ids', [])
-        with transaction.atomic():
-            # Delete tracks not present in the new ordered list (reorder-remove)
-            Track.objects.filter(playlist_id=playlist_id).exclude(id__in=ordered_ids).delete()
-            # Reassign positions to match the submitted order
-            for index, track_id in enumerate(ordered_ids):
-                Track.objects.filter(id=track_id, playlist_id=playlist_id).update(position=index)
+        if 'track_ids' not in request.data:
+            return Response({'error': 'track_ids required'}, status=status.HTTP_400_BAD_REQUEST)
+        ordered_ids = request.data.get('track_ids')
+        if not isinstance(ordered_ids, list):
+            return Response({'error': 'track_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(ordered_ids) != len(set(ordered_ids)):
+            return Response({'error': 'track_ids must not contain duplicates'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                playlist = Playlist.objects.select_for_update().get(id=playlist_id)
+
+                if playlist.owner_id != request.user.id:
+                    return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+                existing_ids = set(
+                    Track.objects.filter(playlist=playlist).values_list('id', flat=True)
+                )
+                for track_id in ordered_ids:
+                    if track_id not in existing_ids:
+                        return Response(
+                            {'error': f'Track {track_id} does not belong to this playlist'},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Delete tracks not present in the new ordered list (reorder-remove)
+                Track.objects.filter(playlist=playlist).exclude(id__in=ordered_ids).delete()
+                # Reassign positions to match the submitted order
+                for index, track_id in enumerate(ordered_ids):
+                    Track.objects.filter(id=track_id, playlist=playlist).update(position=index)
+        except Playlist.DoesNotExist:
+            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+
         return Response({'status': 'reordered'})
 
 
