@@ -215,10 +215,7 @@ run_migrations() {
     echo -e "${BOLD}Running migrations for all services...${NC}"
     echo ""
 
-    for service in "${ALL_SERVICES[@]}"; do
-        echo -e "${CYAN}Running migrations for $service...${NC}"
-        docker-compose exec -T "$service" uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
-    done
+    docker-compose exec -T core uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
 
     echo ""
     echo -e "${GREEN}✓ Migrations completed${NC}"
@@ -227,31 +224,16 @@ run_migrations() {
 
 make_migrations() {
     print_header
-    echo -e "${BOLD}Select service for creating migrations:${NC}"
+    echo -e "${BOLD}Creating migrations...${NC}"
     echo ""
 
-    select service in "${ALL_SERVICES[@]}" "Back to main menu"; do
-        case $service in
-            "Back to main menu")
-                break
-                ;;
-            *)
-                if [ -n "$service" ]; then
-                    print_header
-                    echo -e "${BOLD}Creating migrations for $service${NC}"
-                    echo ""
-                    echo -e "${CYAN}Running makemigrations...${NC}"
-                    docker-compose exec "$service" uv run python manage.py makemigrations
-                    echo ""
-                    echo -e "${GREEN}✓ Migrations created${NC}"
-                    echo -e "${YELLOW}⚠ Review the migration files, then commit them to git${NC}"
-                    echo ""
-                    read -p "Press Enter to continue..."
-                fi
-                break
-                ;;
-        esac
-    done
+    docker-compose exec -T core uv run python manage.py makemigrations
+
+    echo ""
+    echo -e "${GREEN}✓ Migrations created${NC}"
+    echo -e "${YELLOW}⚠ Review the migration files, then commit them to git${NC}"
+    echo ""
+    read -p "Press Enter to continue..."
 }
 
 create_superuser() {
@@ -505,10 +487,7 @@ update_restart() {
 
         echo ""
         echo -e "${CYAN}Running migrations...${NC}"
-        for service in "${ALL_SERVICES[@]}"; do
-            echo -e "  Migrating $service..."
-            docker-compose exec -T "$service" uv run python manage.py migrate --noinput 2>&1 || true
-        done
+        docker-compose exec -T core uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations to apply${NC}"
 
         echo ""
         echo -e "${GREEN}✓ Update complete!${NC}"

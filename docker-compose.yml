@@ -19,7 +19,7 @@ services:
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=spotify-collab_default"
+      - "--providers.docker.network=spotify_isd_backend_default"
       - "--entrypoints.web.address=:80"
       - "--api.insecure=true"
       - "--accesslog=true"
@@ -48,7 +48,8 @@ services:
     env_file:
       - ./services/auth/.env
     environment:
-      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
+      - RUN_MIGRATIONS=false  # Core service runs all migrations (shared DB strategy)
+      - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=PathPrefix(`/api/auth`)"
@@ -68,7 +69,8 @@ services:
     env_file:
       - ./services/core/.env
     environment:
-      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
+      - RUN_MIGRATIONS=true  # Core service runs migrations for all services
+      - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.core-playlists.rule=PathPrefix(`/api/playlists`)"
@@ -77,6 +79,8 @@ services:
       - "traefik.http.routers.core-tracks.service=core-svc"
       - "traefik.http.routers.core-search.rule=PathPrefix(`/api/search`)"
       - "traefik.http.routers.core-search.service=core-svc"
+      - "traefik.http.routers.core-history.rule=PathPrefix(`/api/history`)"
+      - "traefik.http.routers.core-history.service=core-svc"
       - "traefik.http.routers.core-health.rule=PathPrefix(`/api/core`)"
       - "traefik.http.routers.core-health.service=core-svc"
       - "traefik.http.services.core-svc.loadbalancer.server.port=8002"
@@ -95,11 +99,15 @@ services:
     env_file:
       - ./services/collaboration/.env
     environment:
-      - RUN_MIGRATIONS=true  # Auto-run migrations on startup
+      - RUN_MIGRATIONS=false  # Core service runs all migrations (shared DB strategy)
+      - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.collab.rule=PathPrefix(`/api/collab`)"
-      - "traefik.http.services.collab.loadbalancer.server.port=8003"
+      - "traefik.http.routers.collab.service=collab-svc"
+      - "traefik.http.routers.share.rule=PathPrefix(`/api/share`)"
+      - "traefik.http.routers.share.service=collab-svc"
+      - "traefik.http.services.collab-svc.loadbalancer.server.port=8003"
     depends_on:
       - db
 
