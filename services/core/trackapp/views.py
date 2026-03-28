@@ -3,10 +3,21 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from django.db import connection, transaction, IntegrityError
-from playlistapp.models import Playlist
+from playlistapp.models import Playlist, UserPlaylistArchive
 from searchapp.models import Song
-from .models import Track
+from .models import Track, UserTrackHide
 from .serializers import TrackSerializer
+
+def _require_playlist_owner(playlist_id, user_id):
+    """Returns (playlist, None) if user owns the playlist, or (None, Response) otherwise."""
+    try:
+        playlist = Playlist.objects.get(id=playlist_id)
+    except Playlist.DoesNotExist:
+        return None, Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+    if playlist.owner_id != user_id:
+        return None, Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+    return playlist, None
+
 
 TRACK_SORT_MAP = {
     'custom':   'position',
@@ -32,6 +43,7 @@ class TrackListView(APIView):
 
         tracks = (
             Track.objects.filter(playlist_id=playlist_id)
+            .exclude(hidden_by__user_id=request.user.id)
             .select_related('song', 'song__artist', 'song__album')
             .order_by(order_field)
         )
@@ -94,6 +106,9 @@ class TrackDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, playlist_id, track_id):
+        _, err = _require_playlist_owner(playlist_id, request.user.id)
+        if err:
+            return err
         try:
             track = Track.objects.get(id=track_id, playlist_id=playlist_id)
             track.delete()
@@ -128,7 +143,7 @@ class TrackReorderRemoveView(APIView):
                 playlist = Playlist.objects.select_for_update().get(id=playlist_id)
 
                 if playlist.owner_id != request.user.id:
-                    return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
 
                 existing_ids = set(
                     Track.objects.filter(playlist=playlist).values_list('id', flat=True)
@@ -149,6 +164,60 @@ class TrackReorderRemoveView(APIView):
             return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({'status': 'reordered'})
+
+
+class TrackRemoveView(APIView):
+    """DELETE /<playlist_id>/remove/  body: {"track_ids": [1, 2, 3]}
+    Removes specific tracks from a playlist without reordering remaining tracks."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, playlist_id):
+        _, err = _require_playlist_owner(playlist_id, request.user.id)
+        if err:
+            return err
+        track_ids = request.data.get('track_ids', [])
+        Track.objects.filter(playlist_id=playlist_id, id__in=track_ids).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PlaylistArchiveView(APIView):
+    """POST   /<playlist_id>/archive/  → archive playlist for requesting user
+    DELETE /<playlist_id>/archive/  → unarchive playlist for requesting user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+        UserPlaylistArchive.objects.get_or_create(user_id=request.user.id, playlist=playlist)
+        return Response({'status': 'archived'})
+
+    def delete(self, request, playlist_id):
+        UserPlaylistArchive.objects.filter(user_id=request.user.id, playlist_id=playlist_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TrackHideView(APIView):
+    """POST   /<playlist_id>/<track_id>/hide/  → hide track for requesting user
+    DELETE /<playlist_id>/<track_id>/hide/  → unhide track for requesting user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id, track_id):
+        try:
+            track = Track.objects.get(id=track_id, playlist_id=playlist_id)
+        except Track.DoesNotExist:
+            return Response({'error': 'Track not found'}, status=status.HTTP_404_NOT_FOUND)
+        UserTrackHide.objects.get_or_create(user_id=request.user.id, track=track)
+        return Response({'status': 'hidden'})
+
+    def delete(self, request, playlist_id, track_id):
+        UserTrackHide.objects.filter(
+            user_id=request.user.id,
+            track_id=track_id,
+            track__playlist_id=playlist_id,
+        ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])

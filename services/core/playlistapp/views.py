@@ -22,7 +22,10 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         order_field = PLAYLIST_SORT_MAP.get(sort, 'updated_at')
         if order == 'desc':
             order_field = '-' + order_field
-        return Playlist.objects.filter(owner_id=self.request.user.id).order_by(order_field)
+        qs = Playlist.objects.filter(owner_id=self.request.user.id).order_by(order_field)
+        if self.request.query_params.get('include_archived') != 'true':
+            qs = qs.exclude(archived_by__user_id=self.request.user.id)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(owner_id=self.request.user.id)
