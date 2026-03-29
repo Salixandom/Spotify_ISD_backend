@@ -79,3 +79,24 @@ class UserPlaylistLike(models.Model):
 
     def __str__(self):
         return f"User {self.user_id} likes {self.playlist.name}"
+
+
+class PlaylistSnapshot(models.Model):
+    """Snapshots/versioning of playlist states"""
+    playlist        = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='snapshots')
+    snapshot_data   = models.JSONField()  # Stores complete playlist state
+    created_by      = models.IntegerField()
+    created_at      = models.DateTimeField(auto_now_add=True)
+    change_reason   = models.CharField(max_length=255, blank=True, default='')
+    track_count     = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['playlist']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['-created_at']),  # For ordering recent first
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Snapshot of {self.playlist.name} at {self.created_at}"
