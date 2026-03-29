@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     TrackListView, TrackDetailView, TrackReorderRemoveView,
     TrackRemoveView, PlaylistArchiveView, TrackHideView,
-    health_check,
+    TrackSortView, health_check,
 )
 
 urlpatterns = [
@@ -11,6 +11,7 @@ urlpatterns = [
     path("<int:playlist_id>/remove/", TrackRemoveView.as_view()),
     path("<int:playlist_id>/archive/", PlaylistArchiveView.as_view()),
     path("<int:playlist_id>/reorder/", TrackReorderRemoveView.as_view()),
+    path("<int:playlist_id>/sort/", TrackSortView.as_view()),
     path("<int:playlist_id>/<int:track_id>/", TrackDetailView.as_view()),
     path("<int:playlist_id>/<int:track_id>/hide/", TrackHideView.as_view()),
 ]

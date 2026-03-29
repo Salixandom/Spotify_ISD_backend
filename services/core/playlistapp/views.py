@@ -202,8 +202,13 @@ class PlaylistStatsView(APIView):
         last_track = tracks.order_by('-added_at').first()
         last_track_added = last_track.added_at if last_track else None
 
-        # Collaborator count (will be implemented in Phase 3)
-        collaborator_count = 0  # TODO: Integrate with collaboration service
+        # Collaborator count from collabapp
+        try:
+            from collaboration.collabapp.models import Collaborator
+            collaborator_count = Collaborator.objects.filter(playlist_id=playlist.id).count()
+        except ImportError:
+            # Fallback if collabapp not available
+            collaborator_count = 0
 
         # Follow/like status
         is_followed = UserPlaylistFollow.objects.filter(
