@@ -1,6 +1,16 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
+
+from utils.responses import (
+    SuccessResponse,
+    ErrorResponse,
+    NotFoundResponse,
+    ForbiddenResponse,
+    ValidationErrorResponse,
+    ServiceUnavailableResponse,
+    NoContentResponse,
+)
 from django.db import connection
 from .models import Collaborator, InviteLink
 from .serializers import CollaboratorSerializer, InviteLinkSerializer
@@ -14,19 +24,13 @@ class HealthCheckView(APIView):
             with connection.cursor() as cursor:
                 cursor.execute('SELECT 1')
                 cursor.fetchone()
-            return Response(
-                {'status': 'healthy', 'service': 'collaboration', 'database': 'connected'},
-                status=200,
+            return SuccessResponse(
+                data={'status': 'healthy', 'service': 'collaboration', 'database': 'connected'},
+                message='Service is healthy'
             )
         except Exception as e:
-            return Response(
-                {
-                    'status': 'unhealthy',
-                    'service': 'collaboration',
-                    'database': 'disconnected',
-                    'error': str(e),
-                },
-                status=503,
+            return ServiceUnavailableResponse(
+                message=f'Database connection failed: {str(e)}'
             )
 
 
@@ -38,7 +42,11 @@ class GenerateInviteView(APIView):
             playlist_id=playlist_id,
             created_by_id=request.user.id,
         )
-        return Response(InviteLinkSerializer(invite).data, status=status.HTTP_201_CREATED)
+        return SuccessResponse(
+            data=InviteLinkSerializer(invite).data,
+            message='Invite link generated successfully',
+            status_code=201
+        )
 
 
 class JoinView(APIView):
@@ -48,26 +56,36 @@ class JoinView(APIView):
         try:
             invite = InviteLink.objects.get(token=token)
         except InviteLink.DoesNotExist:
-            return Response({'valid': False}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Invalid link')
         if not invite.is_valid:
-            return Response({'valid': False}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'playlist_id': invite.playlist_id, 'valid': True})
+            return NotFoundResponse(message='Invalid link')
+        return SuccessResponse(
+            data={'playlist_id': invite.playlist_id, 'valid': True},
+            message='Invite link is valid'
+        )
 
     def post(self, request, token):
         try:
             invite = InviteLink.objects.get(token=token)
         except InviteLink.DoesNotExist:
-            return Response({'error': 'Invalid link'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Invalid link')
         if not invite.is_valid:
-            return Response({'error': 'Invalid link'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Invalid link')
 
         collab, created = Collaborator.objects.get_or_create(
             playlist_id=invite.playlist_id,
             user_id=request.user.id,
         )
         if not created:
-            return Response({'error': 'already_member'}, status=status.HTTP_200_OK)
-        return Response(CollaboratorSerializer(collab).data, status=status.HTTP_201_CREATED)
+            return SuccessResponse(
+                data={'already_member': True},
+                message='Already a member of this playlist'
+            )
+        return SuccessResponse(
+            data=CollaboratorSerializer(collab).data,
+            message='Added as collaborator successfully',
+            status_code=201
+        )
 
 
 class CollaboratorListView(APIView):
@@ -75,7 +93,10 @@ class CollaboratorListView(APIView):
 
     def get(self, request, playlist_id):
         collabs = Collaborator.objects.filter(playlist_id=playlist_id)
-        return Response(CollaboratorSerializer(collabs, many=True).data)
+        return SuccessResponse(
+            data=CollaboratorSerializer(collabs, many=True).data,
+            message=f'Retrieved {collabs.count()} collaborators'
+        )
 
     def delete(self, request, playlist_id):
         """
@@ -87,12 +108,15 @@ class CollaboratorListView(APIView):
         """
         user_id = request.query_params.get('user_id')
         if not user_id:
-            return Response({'error': 'user_id required'}, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'user_id': 'This field is required'},
+                message='user_id required'
+            )
 
         # Allow self-removal
         if str(user_id) == str(request.user.id):
             Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return NoContentResponse()
 
         # Check if requester is playlist owner via cross-service call
         import requests
@@ -112,15 +136,14 @@ class CollaboratorListView(APIView):
                 playlist_data = response.json()
                 if playlist_data.get('owner_id') == request.user.id:
                     Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
-                    return Response(status=status.HTTP_204_NO_CONTENT)
+                    return NoContentResponse()
 
         except requests.RequestException as e:
-            return Response(
-                {'error': f'Failed to verify ownership: {str(e)}'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            return ServiceUnavailableResponse(
+                message=f'Failed to verify ownership: {str(e)}'
             )
 
-        return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        return ForbiddenResponse(message='Access forbidden')
 
 
 class MyCollaborationsView(APIView):
@@ -131,7 +154,10 @@ class MyCollaborationsView(APIView):
             Collaborator.objects.filter(user_id=request.user.id)
             .values_list('playlist_id', flat=True)
         )
-        return Response({'playlist_ids': list(playlist_ids)})
+        return SuccessResponse(
+            data={'playlist_ids': list(playlist_ids)},
+            message=f'Retrieved {len(playlist_ids)} collaborative playlists'
+        )
 
 
 class MyRoleView(APIView):
@@ -141,7 +167,10 @@ class MyRoleView(APIView):
         try:
             Collaborator.objects.get(playlist_id=playlist_id, user_id=request.user.id)
         except Collaborator.DoesNotExist:
-            return Response({'error': 'Not a collaborator'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'role': 'collaborator'})
+            return NotFoundResponse(message='Not a collaborator')
+        return SuccessResponse(
+            data={'role': 'collaborator'},
+            message='User is a collaborator'
+        )
 
 

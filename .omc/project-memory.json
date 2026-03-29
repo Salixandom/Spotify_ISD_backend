@@ -68,8 +68,20 @@
   "hotPaths": [
     {
       "path": "services/core/playlistapp/views.py",
-      "accessCount": 50,
-      "lastAccessed": 1774823172256,
+      "accessCount": 117,
+      "lastAccessed": 1774827105272,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/views.py",
+      "accessCount": 54,
+      "lastAccessed": 1774828052458,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/collabapp/views.py",
+      "accessCount": 17,
+      "lastAccessed": 1774827942703,
       "type": "file"
     },
     {
@@ -79,21 +91,33 @@
       "type": "file"
     },
     {
+      "path": "services/core/searchapp/views.py",
+      "accessCount": 13,
+      "lastAccessed": 1774827355810,
+      "type": "file"
+    },
+    {
       "path": "services/core/playlistapp/urls.py",
       "accessCount": 12,
       "lastAccessed": 1774821944341,
       "type": "file"
     },
     {
-      "path": "services/core/trackapp/views.py",
-      "accessCount": 8,
-      "lastAccessed": 1774822117606,
+      "path": "services/collaboration/shareapp/views.py",
+      "accessCount": 9,
+      "lastAccessed": 1774828182083,
       "type": "file"
     },
     {
       "path": "services/core/playlistapp/serializers.py",
       "accessCount": 8,
       "lastAccessed": 1774823202369,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/views.py",
+      "accessCount": 7,
+      "lastAccessed": 1774827223353,
       "type": "file"
     },
     {
@@ -136,6 +160,18 @@
       "path": "services/core/trackapp/serializers.py",
       "accessCount": 2,
       "lastAccessed": 1774822097792,
+      "type": "file"
+    },
+    {
+      "path": "services/core/utils/responses.py",
+      "accessCount": 2,
+      "lastAccessed": 1774827922294,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/utils/responses.py",
+      "accessCount": 2,
+      "lastAccessed": 1774828017244,
       "type": "file"
     },
     {
@@ -202,12 +238,6 @@
       "path": "services/collaboration/collabapp/models.py",
       "accessCount": 1,
       "lastAccessed": 1774821083662,
-      "type": "file"
-    },
-    {
-      "path": "services/collaboration/collabapp/views.py",
-      "accessCount": 1,
-      "lastAccessed": 1774821093363,
       "type": "file"
     },
     {

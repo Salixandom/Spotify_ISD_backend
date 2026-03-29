@@ -2,6 +2,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
+
+from utils.responses import (
+    SuccessResponse,
+    ErrorResponse,
+    NotFoundResponse,
+    ForbiddenResponse,
+    ValidationErrorResponse,
+    ServiceUnavailableResponse,
+)
 from django.db.models import Q
 from django.db import connection
 
@@ -48,12 +57,15 @@ class SearchView(APIView):
                 | Q(artist__name__icontains=query)
             )
 
-        return Response({
-            'songs':     SongSerializer(songs[:20], many=True).data,
-            'playlists': PlaylistSerializer(playlists[:20], many=True).data,
-            'artists':   ArtistSerializer(artists[:20], many=True).data,
-            'albums':    AlbumSerializer(albums[:20], many=True).data,
-        })
+        return SuccessResponse(
+            data={
+                'songs': SongSerializer(songs[:20], many=True).data,
+                'playlists': PlaylistSerializer(playlists[:20], many=True).data,
+                'artists': ArtistSerializer(artists[:20], many=True).data,
+                'albums': AlbumSerializer(albums[:20], many=True).data,
+            },
+            message='Search completed successfully'
+        )
 
 
 class BrowseView(APIView):
@@ -66,7 +78,10 @@ class BrowseView(APIView):
             .distinct()
             .order_by('genre')
         )
-        return Response(list(genres))
+        return SuccessResponse(
+            data=list(genres),
+            message=f'Found {len(list(genres))} genres'
+        )
 
 
 class ArtistListView(APIView):
@@ -77,7 +92,10 @@ class ArtistListView(APIView):
         qs = Artist.objects.all()
         if query:
             qs = qs.filter(name__icontains=query)
-        return Response(ArtistSerializer(qs.order_by('name'), many=True).data)
+        return SuccessResponse(
+            data=ArtistSerializer(qs.order_by('name'), many=True).data,
+            message=f'Found {qs.count()} artists'
+        )
 
 
 class ArtistDetailView(APIView):
@@ -87,8 +105,11 @@ class ArtistDetailView(APIView):
         try:
             artist = Artist.objects.get(id=artist_id)
         except Artist.DoesNotExist:
-            return Response({'error': 'Artist not found'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(ArtistSerializer(artist).data)
+            return NotFoundResponse(message='Artist not found')
+        return SuccessResponse(
+            data=ArtistSerializer(artist).data,
+            message='Artist retrieved successfully'
+        )
 
 
 class AlbumListView(APIView):
@@ -101,7 +122,10 @@ class AlbumListView(APIView):
             qs = qs.filter(
                 Q(name__icontains=query) | Q(artist__name__icontains=query)
             )
-        return Response(AlbumSerializer(qs.order_by('name'), many=True).data)
+        return SuccessResponse(
+            data=AlbumSerializer(qs.order_by('name'), many=True).data,
+            message=f'Found {qs.count()} albums'
+        )
 
 
 class AlbumDetailView(APIView):
@@ -111,8 +135,11 @@ class AlbumDetailView(APIView):
         try:
             album = Album.objects.select_related('artist').get(id=album_id)
         except Album.DoesNotExist:
-            return Response({'error': 'Album not found'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(AlbumSerializer(album).data)
+            return NotFoundResponse(message='Album not found')
+        return SuccessResponse(
+            data=AlbumSerializer(album).data,
+            message='Album retrieved successfully'
+        )
 
 
 class SongSearchView(APIView):
@@ -142,7 +169,10 @@ class SongSearchView(APIView):
                 order_field = '-' + order_field
             qs = qs.order_by(order_field)
 
-        return Response(SongSerializer(qs[:20], many=True).data)
+        return SuccessResponse(
+            data=SongSerializer(qs[:20], many=True).data,
+            message=f'Found {min(qs.count(), 20)} songs'
+        )
 
 
 class PlaylistSearchView(APIView):
@@ -163,7 +193,10 @@ class PlaylistSearchView(APIView):
         if playlist_type in ('solo', 'collaborative'):
             qs = qs.filter(playlist_type=playlist_type)
 
-        return Response(PlaylistSerializer(qs.order_by('name')[:20], many=True).data)
+        return SuccessResponse(
+            data=PlaylistSerializer(qs.order_by('name')[:20], many=True).data,
+            message=f'Found {min(qs.count(), 20)} playlists'
+        )
 
 
 
@@ -174,17 +207,11 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return Response(
-            {'status': 'healthy', 'service': 'search', 'database': 'connected'},
-            status=200,
+        return SuccessResponse(
+            data={'status': 'healthy', 'service': 'search', 'database': 'connected'},
+            message='Service is healthy'
         )
     except Exception as e:
-        return Response(
-            {
-                'status': 'unhealthy',
-                'service': 'search',
-                'database': 'disconnected',
-                'error': str(e),
-            },
-            status=503,
+        return ServiceUnavailableResponse(
+            message=f'Database connection failed: {str(e)}'
         )

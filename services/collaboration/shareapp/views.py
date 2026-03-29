@@ -1,7 +1,12 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions, status
+from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
+
+from utils.responses import (
+    SuccessResponse,
+    NotFoundResponse,
+    ServiceUnavailableResponse,
+)
 from django.db import connection
 from .models import ShareLink
 from .serializers import ShareLinkSerializer
@@ -15,7 +20,11 @@ class CreateShareLinkView(APIView):
             playlist_id=playlist_id,
             created_by_id=request.user.id,
         )
-        return Response(ShareLinkSerializer(share).data, status=status.HTTP_201_CREATED)
+        return SuccessResponse(
+            data=ShareLinkSerializer(share).data,
+            message='Share link created successfully',
+            status_code=201
+        )
 
 
 class ViewShareLinkView(APIView):
@@ -25,19 +34,19 @@ class ViewShareLinkView(APIView):
         try:
             share = ShareLink.objects.get(token=token)
         except ShareLink.DoesNotExist:
-            return Response({'valid': False}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Invalid link')
 
         if not share.is_valid:
-            return Response(
-                {'valid': False, 'error': 'Share link is expired'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return NotFoundResponse(message='Share link is expired')
 
-        return Response({
-            'valid': True,
-            'playlist_id': share.playlist_id,
-            'share': ShareLinkSerializer(share).data,
-        })
+        return SuccessResponse(
+            data={
+                'valid': True,
+                'playlist_id': share.playlist_id,
+                'share': ShareLinkSerializer(share).data,
+            },
+            message='Share link is valid'
+        )
 
 
 @api_view(['GET'])
@@ -47,17 +56,11 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return Response(
-            {'status': 'healthy', 'service': 'share', 'database': 'connected'},
-            status=200,
+        return SuccessResponse(
+            data={'status': 'healthy', 'service': 'share', 'database': 'connected'},
+            message='Service is healthy'
         )
     except Exception as e:
-        return Response(
-            {
-                'status': 'unhealthy',
-                'service': 'share',
-                'database': 'disconnected',
-                'error': str(e),
-            },
-            status=503,
+        return ServiceUnavailableResponse(
+            message=f'Database connection failed: {str(e)}'
         )

@@ -2,6 +2,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
+
+from utils.responses import (
+    SuccessResponse,
+    ErrorResponse,
+    NotFoundResponse,
+    ForbiddenResponse,
+    ValidationErrorResponse,
+    ServiceUnavailableResponse,
+)
 from django.db import connection
 
 from .models import Play
@@ -15,19 +24,20 @@ class RecordPlayView(APIView):
     def post(self, request):
         song_id = request.data.get("song_id")
         if not song_id:
-            return Response(
-                {"error": "song_id required"},
-                status=status.HTTP_400_BAD_REQUEST,
+            return ValidationErrorResponse(
+                errors={'song_id': 'This field is required'},
+                message='song_id required'
             )
         try:
             song = Song.objects.get(id=song_id)
             Play.objects.create(user_id=request.user.id, song=song)
-            return Response({"status": "recorded"}, status=status.HTTP_201_CREATED)
-        except Song.DoesNotExist:
-            return Response(
-                {"error": "Song not found"},
-                status=status.HTTP_404_NOT_FOUND,
+            return SuccessResponse(
+                data={'status': 'recorded'},
+                message='Play recorded successfully',
+                status_code=201
             )
+        except Song.DoesNotExist:
+            return NotFoundResponse(message='Song not found')
 
 
 class RecentPlaysView(APIView):
@@ -50,7 +60,10 @@ class RecentPlaysView(APIView):
             if len(recent) >= 10:
                 break
 
-        return Response(SongSerializer(recent, many=True).data)
+        return SuccessResponse(
+            data=SongSerializer(recent, many=True).data,
+            message=f'Retrieved {len(recent)} recently played songs'
+        )
 
 
 @api_view(["GET"])
@@ -61,21 +74,11 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
-        return Response(
-            {
-                "status": "healthy",
-                "service": "history",
-                "database": "connected",
-            },
-            status=200,
+        return SuccessResponse(
+            data={'status': 'healthy', 'service': 'history', 'database': 'connected'},
+            message='Service is healthy'
         )
     except Exception as e:
-        return Response(
-            {
-                "status": "unhealthy",
-                "service": "history",
-                "database": "disconnected",
-                "error": str(e),
-            },
-            status=503,
+        return ServiceUnavailableResponse(
+            message=f'Database connection failed: {str(e)}'
         )

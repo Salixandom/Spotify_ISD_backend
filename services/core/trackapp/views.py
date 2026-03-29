@@ -1,7 +1,17 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions, status
+from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
+
+from utils.responses import (
+    SuccessResponse,
+    ErrorResponse,
+    NotFoundResponse,
+    ForbiddenResponse,
+    ValidationErrorResponse,
+    ConflictResponse,
+    ServiceUnavailableResponse,
+    NoContentResponse,
+)
 from django.db import connection, transaction, IntegrityError
 from playlistapp.models import Playlist, UserPlaylistArchive
 from searchapp.models import Song
@@ -14,13 +24,13 @@ def _require_playlist_owner(playlist_id, user_id):
     try:
         playlist = Playlist.objects.get(id=playlist_id)
     except Playlist.DoesNotExist:
-        return None, Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+        return None, NotFoundResponse(message='Playlist not found')
     if playlist.owner_id != user_id:
-        return None, Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        return None, ForbiddenResponse(message='Not authorized')
     return playlist, None
 
 
-def _can_edit_playlist(playlist_id, user_id):
+def _can_edit_playlist(playlist_id, user_id, request=None):
     """
     Check if user can edit playlist (owner or collaborator).
     Returns (playlist, None) if authorized, or (None, Response) otherwise.
@@ -28,20 +38,31 @@ def _can_edit_playlist(playlist_id, user_id):
     try:
         playlist = Playlist.objects.get(id=playlist_id)
     except Playlist.DoesNotExist:
-        return None, Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+        return None, NotFoundResponse(message='Playlist not found')
 
     # Owner can always edit
     if playlist.owner_id == user_id:
         return playlist, None
 
-    # Check if user is a collaborator
+    # Check if user is a collaborator via service client
     try:
-        # Import here to avoid circular imports
-        from collaboration.collabapp.models import Collaborator
-        Collaborator.objects.get(playlist_id=playlist_id, user_id=user_id)
-        return playlist, None
-    except Collaborator.DoesNotExist:
-        return None, Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        from utils.service_clients import CollaborationServiceClient
+        auth_token = request.headers.get('Authorization', '') if request else None
+
+        is_collab = CollaborationServiceClient.is_collaborator(
+            playlist_id,
+            user_id,
+            auth_token
+        )
+
+        if is_collab:
+            return playlist, None
+        else:
+            return None, ForbiddenResponse(message='Not authorized')
+    except Exception as e:
+        return None, ServiceUnavailableResponse(
+            message=f'Failed to verify collaborator status: {str(e)}'
+        )
 
 
 TRACK_SORT_MAP = {
@@ -72,17 +93,23 @@ class TrackListView(APIView):
             .select_related('song', 'song__artist', 'song__album')
             .order_by(order_field)
         )
-        return Response(TrackSerializer(tracks, many=True).data)
+        return SuccessResponse(
+            data=TrackSerializer(tracks, many=True).data,
+            message=f'Retrieved {tracks.count()} tracks'
+        )
 
     def post(self, request, playlist_id):
         song_id = request.data.get('song_id')
         if not song_id:
-            return Response({'error': 'song_id required'}, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'song_id': 'This field is required'},
+                message='song_id required'
+            )
 
         try:
             song = Song.objects.get(id=song_id)
         except Song.DoesNotExist:
-            return Response({'error': 'Song not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Song not found')
 
         # Wrap add-track in a transaction with row locking to prevent race conditions.
         # select_for_update() locks the playlist row so two concurrent requests cannot
@@ -93,20 +120,18 @@ class TrackListView(APIView):
                 playlist = Playlist.objects.select_for_update().get(id=playlist_id)
 
                 if playlist.owner_id != request.user.id:
-                    return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+                    return ForbiddenResponse(message='Access forbidden')
 
                 if Track.objects.filter(playlist=playlist, song=song).exists():
-                    return Response(
-                        {'error': 'Song already in playlist'},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                    return ConflictResponse(message='Song already in playlist')
 
                 if playlist.max_songs > 0:
                     count = Track.objects.filter(playlist=playlist).count()
                     if count >= playlist.max_songs:
-                        return Response(
-                            {'error': 'playlist_song_limit_reached', 'max_songs': playlist.max_songs},
-                            status=status.HTTP_400_BAD_REQUEST,
+                        return ErrorResponse(
+                            error='validation_error',
+                            message='Playlist song limit reached',
+                            details={'max_songs': playlist.max_songs}
                         )
 
                 last = Track.objects.filter(playlist=playlist).order_by('-position').first()
@@ -119,12 +144,19 @@ class TrackListView(APIView):
                     position=position,
                 )
         except Playlist.DoesNotExist:
-            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
         except IntegrityError:
             # Race condition: two concurrent requests both passed the exists() check
-            return Response({'error': 'Song already in playlist'}, status=status.HTTP_400_BAD_REQUEST)
+            return ErrorResponse(
+                error='validation_error',
+                message='Song already in playlist'
+            )
 
-        return Response(TrackSerializer(track).data, status=status.HTTP_201_CREATED)
+        return SuccessResponse(
+            data=TrackSerializer(track).data,
+            message='Track added to playlist',
+            status_code=201
+        )
 
 
 class TrackDetailView(APIView):
@@ -137,9 +169,9 @@ class TrackDetailView(APIView):
         try:
             track = Track.objects.get(id=track_id, playlist_id=playlist_id)
             track.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return NoContentResponse()
         except Track.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Track not found')
 
 
 class TrackReorderRemoveView(APIView):
@@ -158,15 +190,24 @@ class TrackReorderRemoveView(APIView):
 
     def put(self, request, playlist_id):
         if 'track_ids' not in request.data:
-            return Response({'error': 'track_ids required'}, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'track_ids': 'This field is required'},
+                message='track_ids required'
+            )
         ordered_ids = request.data.get('track_ids')
         if not isinstance(ordered_ids, list):
-            return Response({'error': 'track_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'track_ids': 'Must be a list'},
+                message='track_ids must be a list'
+            )
         if len(ordered_ids) != len(set(ordered_ids)):
-            return Response({'error': 'track_ids must not contain duplicates'}, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'track_ids': 'Must not contain duplicates'},
+                message='track_ids must not contain duplicates'
+            )
 
         # Check authorization (owner or collaborator)
-        playlist, err = _can_edit_playlist(playlist_id, request.user.id)
+        playlist, err = _can_edit_playlist(playlist_id, request.user.id, request)
         if err:
             return err
 
@@ -179,9 +220,9 @@ class TrackReorderRemoveView(APIView):
                 )
                 for track_id in ordered_ids:
                     if track_id not in existing_ids:
-                        return Response(
-                            {'error': f'Track {track_id} does not belong to this playlist'},
-                            status=status.HTTP_400_BAD_REQUEST,
+                        return ErrorResponse(
+                            error='validation_error',
+                            message=f'Track {track_id} does not belong to this playlist'
                         )
 
                 # Delete tracks not present in the new ordered list (reorder-remove)
@@ -190,9 +231,12 @@ class TrackReorderRemoveView(APIView):
                 for index, track_id in enumerate(ordered_ids):
                     Track.objects.filter(id=track_id, playlist=playlist).update(position=index)
         except Playlist.DoesNotExist:
-            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
-        return Response({'status': 'reordered'})
+        return SuccessResponse(
+            data={'status': 'reordered'},
+            message='Playlist tracks reordered successfully'
+        )
 
 
 class TrackRemoveView(APIView):
@@ -206,7 +250,7 @@ class TrackRemoveView(APIView):
             return err
         track_ids = request.data.get('track_ids', [])
         Track.objects.filter(playlist_id=playlist_id, id__in=track_ids).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return NoContentResponse()
 
 
 class PlaylistArchiveView(APIView):
@@ -218,13 +262,16 @@ class PlaylistArchiveView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
         UserPlaylistArchive.objects.get_or_create(user_id=request.user.id, playlist=playlist)
-        return Response({'status': 'archived'})
+        return SuccessResponse(
+            data={'status': 'archived'},
+            message='Playlist archived successfully'
+        )
 
     def delete(self, request, playlist_id):
         UserPlaylistArchive.objects.filter(user_id=request.user.id, playlist_id=playlist_id).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return NoContentResponse()
 
 
 class TrackHideView(APIView):
@@ -236,9 +283,12 @@ class TrackHideView(APIView):
         try:
             track = Track.objects.get(id=track_id, playlist_id=playlist_id)
         except Track.DoesNotExist:
-            return Response({'error': 'Track not found'}, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Track not found')
         UserTrackHide.objects.get_or_create(user_id=request.user.id, track=track)
-        return Response({'status': 'hidden'})
+        return SuccessResponse(
+            data={'status': 'hidden'},
+            message='Track hidden successfully'
+        )
 
     def delete(self, request, playlist_id, track_id):
         UserTrackHide.objects.filter(
@@ -246,7 +296,7 @@ class TrackHideView(APIView):
             track_id=track_id,
             track__playlist_id=playlist_id,
         ).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return NoContentResponse()
 
 
 @api_view(['GET'])
@@ -256,19 +306,13 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return Response(
-            {'status': 'healthy', 'service': 'track', 'database': 'connected'},
-            status=200,
+        return SuccessResponse(
+            data={'status': 'healthy', 'service': 'track', 'database': 'connected'},
+            message='Service is healthy'
         )
     except Exception as e:
-        return Response(
-            {
-                'status': 'unhealthy',
-                'service': 'track',
-                'database': 'disconnected',
-                'error': str(e),
-            },
-            status=503,
+        return ServiceUnavailableResponse(
+            message=f'Database connection failed: {str(e)}'
         )
 
 
@@ -296,19 +340,19 @@ class TrackSortView(APIView):
         order = request.data.get('order', 'asc')
 
         if sort_by not in TRACK_SORT_MAP:
-            return Response({
-                'error': 'invalid_sort_field',
-                'message': f'Sort field must be one of: {", ".join(TRACK_SORT_MAP.keys())}'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'sort_by': f'Must be one of: {", ".join(TRACK_SORT_MAP.keys())}'},
+                message='Invalid sort field'
+            )
 
         if order not in ['asc', 'desc']:
-            return Response({
-                'error': 'invalid_order',
-                'message': 'Order must be asc or desc'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'order': 'Must be asc or desc'},
+                message='Invalid order'
+            )
 
         # Check authorization (owner or collaborator)
-        playlist, err = _can_edit_playlist(playlist_id, request.user.id)
+        playlist, err = _can_edit_playlist(playlist_id, request.user.id, request)
         if err:
             return err
 
@@ -341,16 +385,19 @@ class TrackSortView(APIView):
                 # Bulk update positions
                 Track.objects.bulk_update(track_updates, ['position'])
 
-                return Response({
-                    'message': f'Playlist sorted by {sort_by} ({order})',
-                    'sort_by': sort_by,
-                    'order': order,
-                    'tracks_updated': len(sorted_tracks),
-                    'tracks': TrackSerializer(sorted_tracks, many=True).data
-                })
+                return SuccessResponse(
+                    data={
+                        'sort_by': sort_by,
+                        'order': order,
+                        'tracks_updated': len(sorted_tracks),
+                        'tracks': TrackSerializer(sorted_tracks, many=True).data
+                    },
+                    message=f'Playlist sorted by {sort_by} ({order})'
+                )
 
         except Exception as e:
-            return Response({
-                'error': 'sort_failed',
-                'message': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return ErrorResponse(
+                error='sort_failed',
+                message=str(e),
+                status_code=500
+            )
