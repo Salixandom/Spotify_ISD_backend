@@ -10,6 +10,9 @@ from .views import (
     BatchUpdateView,
     CoverUploadView,
     CoverDeleteView,
+    UserPlaylistsView,
+    PlaylistFollowView,
+    PlaylistLikeView,
 )
 
 router = DefaultRouter()
@@ -24,5 +27,9 @@ urlpatterns = [
     path("batch-delete/", BatchDeleteView.as_view(), name="batch-delete"),
     path("batch-update/", BatchUpdateView.as_view(), name="batch-update"),
     path("<int:playlist_id>/cover/", CoverUploadView.as_view(), name="cover-upload"),
+    # Phase 3: Social Features
+    path("users/<int:user_id>/playlists/", UserPlaylistsView.as_view(), name="user-playlists"),
+    path("<int:playlist_id>/follow/", PlaylistFollowView.as_view(), name="playlist-follow"),
+    path("<int:playlist_id>/like/", PlaylistLikeView.as_view(), name="playlist-like"),
     path("", include(router.urls)),
 ]

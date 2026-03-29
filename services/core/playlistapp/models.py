@@ -43,3 +43,39 @@ class UserPlaylistArchive(models.Model):
 
     class Meta:
         unique_together = ('user_id', 'playlist')
+
+
+class UserPlaylistFollow(models.Model):
+    """Users can follow playlists created by others"""
+    user_id     = models.IntegerField()
+    playlist    = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='followers')
+    followed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user_id', 'playlist')
+        indexes = [
+            models.Index(fields=['user_id']),
+            models.Index(fields=['playlist']),
+            models.Index(fields=['followed_at']),
+        ]
+
+    def __str__(self):
+        return f"User {self.user_id} follows {self.playlist.name}"
+
+
+class UserPlaylistLike(models.Model):
+    """Users can like/favorite playlists"""
+    user_id    = models.IntegerField()
+    playlist   = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='likes')
+    liked_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user_id', 'playlist')
+        indexes = [
+            models.Index(fields=['user_id']),
+            models.Index(fields=['playlist']),
+            models.Index(fields=['liked_at']),
+        ]
+
+    def __str__(self):
+        return f"User {self.user_id} likes {self.playlist.name}"

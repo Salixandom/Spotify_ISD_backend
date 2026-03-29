@@ -67,15 +67,39 @@
   },
   "hotPaths": [
     {
+      "path": "services/core/playlistapp/views.py",
+      "accessCount": 6,
+      "lastAccessed": 1774819998380,
+      "type": "file"
+    },
+    {
       "path": "services/core/playlistapp/urls.py",
-      "accessCount": 3,
-      "lastAccessed": 1774819801725,
+      "accessCount": 5,
+      "lastAccessed": 1774820017960,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/models.py",
+      "accessCount": 2,
+      "lastAccessed": 1774819959795,
       "type": "file"
     },
     {
       "path": "docs/SESSION-2026-03-30-phase2.md",
       "accessCount": 1,
       "lastAccessed": 1774819892953,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/serializers.py",
+      "accessCount": 1,
+      "lastAccessed": 1774820005246,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase3.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820063116,
       "type": "file"
     }
   ],

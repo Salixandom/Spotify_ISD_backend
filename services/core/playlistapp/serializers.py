@@ -34,6 +34,8 @@ class PlaylistStatsSerializer(serializers.Serializer):
     unique_albums = serializers.IntegerField(read_only=True)
     last_track_added = serializers.DateTimeField(read_only=True)
     collaborator_count = serializers.IntegerField(read_only=True)
+    follower_count = serializers.IntegerField(read_only=True)
+    like_count = serializers.IntegerField(read_only=True)
     is_followed = serializers.BooleanField(read_only=True)
     is_liked = serializers.BooleanField(read_only=True)
     owner_id = serializers.IntegerField(read_only=True)

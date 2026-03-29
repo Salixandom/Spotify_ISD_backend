@@ -6,7 +6,7 @@ from django.db import connection
 from django.db.models import Q, Count, Avg, Sum, F
 from django.utils import timezone
 from datetime import timedelta
-from .models import Playlist
+from .models import Playlist, UserPlaylistFollow, UserPlaylistLike
 from .serializers import PlaylistSerializer, PlaylistStatsSerializer
 from trackapp.models import Track
 
@@ -77,11 +77,17 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         # Special filters
         filter_type = self.request.query_params.get('filter')
         if filter_type == 'followed':
-            # Will be implemented in Phase 3
-            pass
+            # Filter to playlists followed by the user
+            followed_playlist_ids = UserPlaylistFollow.objects.filter(
+                user_id=self.request.user.id
+            ).values_list('playlist_id', flat=True)
+            qs = qs.filter(id__in=followed_playlist_ids)
         elif filter_type == 'liked':
-            # Will be implemented in Phase 3
-            pass
+            # Filter to playlists liked by the user
+            liked_playlist_ids = UserPlaylistLike.objects.filter(
+                user_id=self.request.user.id
+            ).values_list('playlist_id', flat=True)
+            qs = qs.filter(id__in=liked_playlist_ids)
 
         # Sorting
         sort = self.request.query_params.get('sort', 'updated_at')
@@ -199,9 +205,20 @@ class PlaylistStatsView(APIView):
         # Collaborator count (will be implemented in Phase 3)
         collaborator_count = 0  # TODO: Integrate with collaboration service
 
-        # Follow/like status (will be implemented in Phase 3)
-        is_followed = False  # TODO: Check UserPlaylistFollow
-        is_liked = False     # TODO: Check UserPlaylistLike
+        # Follow/like status
+        is_followed = UserPlaylistFollow.objects.filter(
+            user_id=request.user.id,
+            playlist=playlist
+        ).exists()
+
+        is_liked = UserPlaylistLike.objects.filter(
+            user_id=request.user.id,
+            playlist=playlist
+        ).exists()
+
+        # Follower and like counts
+        follower_count = UserPlaylistFollow.objects.filter(playlist=playlist).count()
+        like_count = UserPlaylistLike.objects.filter(playlist=playlist).count()
 
         # Format duration
         hours = total_duration // 3600
@@ -220,6 +237,8 @@ class PlaylistStatsView(APIView):
             'unique_albums': unique_albums,
             'last_track_added': last_track_added,
             'collaborator_count': collaborator_count,
+            'follower_count': follower_count,
+            'like_count': like_count,
             'is_followed': is_followed,
             'is_liked': is_liked,
             'owner_id': playlist.owner_id,
@@ -527,3 +546,231 @@ def health_check(request):
             },
             status=503,
         )
+
+
+class UserPlaylistsView(APIView):
+    """
+    GET /api/users/{id}/playlists/
+
+    Returns playlists for a specific user:
+    - If requesting own playlists: shows all (public + private)
+    - If requesting others' playlists: shows only public
+    - Supports all filtering parameters from PlaylistViewSet
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        # Start with all playlists for this user
+        qs = Playlist.objects.filter(owner_id=user_id)
+
+        # Privacy check: if not requesting own playlists, only show public
+        if request.user.id != user_id:
+            qs = qs.filter(visibility='public')
+
+        # Apply the same filtering logic as PlaylistViewSet
+        # Visibility filter
+        visibility = request.query_params.get('visibility')
+        if visibility in ['public', 'private']:
+            qs = qs.filter(visibility=visibility)
+
+        # Type filter
+        playlist_type = request.query_params.get('type')
+        if playlist_type in ['solo', 'collaborative']:
+            qs = qs.filter(playlist_type=playlist_type)
+
+        # Search
+        query = request.query_params.get('q')
+        if query:
+            qs = qs.filter(
+                Q(name__icontains=query) |
+                Q(description__icontains=query)
+            )
+
+        # Date range filters
+        created_after = request.query_params.get('created_after')
+        if created_after:
+            try:
+                qs = qs.filter(created_at__gte=created_after)
+            except ValueError:
+                pass
+
+        created_before = request.query_params.get('created_before')
+        if created_before:
+            try:
+                qs = qs.filter(created_at__lte=created_before)
+            except ValueError:
+                pass
+
+        # Exclude archived by default
+        if request.query_params.get('include_archived') != 'true':
+            qs = qs.exclude(archived_by__user_id=request.user.id)
+
+        # Sorting
+        sort = request.query_params.get('sort', 'updated_at')
+        order = request.query_params.get('order', 'desc')
+        order_field = PLAYLIST_SORT_MAP.get(sort, 'updated_at')
+
+        if sort == 'track_count':
+            qs = qs.annotate(track_count=Count('tracks'))
+
+        if order == 'desc':
+            order_field = '-' + order_field
+
+        qs = qs.order_by(order_field)
+
+        # Pagination limit
+        limit = int(request.query_params.get('limit', 50))
+        offset = int(request.query_params.get('offset', 0))
+
+        total = qs.count()
+        playlists = qs[offset:offset + limit]
+
+        return Response({
+            'user_id': user_id,
+            'total': total,
+            'limit': limit,
+            'offset': offset,
+            'playlists': PlaylistSerializer(playlists, many=True).data
+        })
+
+
+class PlaylistFollowView(APIView):
+    """
+    POST /api/playlists/{id}/follow/ - Follow a playlist
+    DELETE /api/playlists/{id}/follow/ - Unfollow a playlist
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Cannot follow own playlists
+        if playlist.owner_id == request.user.id:
+            return Response({
+                'error': 'invalid_operation',
+                'message': 'Cannot follow your own playlist'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Can only follow public playlists
+        if playlist.visibility != 'public':
+            return Response({
+                'error': 'invalid_operation',
+                'message': 'Can only follow public playlists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create follow relationship (idempotent)
+        follow, created = UserPlaylistFollow.objects.get_or_create(
+            user_id=request.user.id,
+            playlist=playlist
+        )
+
+        if not created:
+            return Response({
+                'message': 'Already following this playlist'
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'message': 'Playlist followed successfully',
+            'followed_at': follow.followed_at
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete follow relationship
+        deleted_count, _ = UserPlaylistFollow.objects.filter(
+            user_id=request.user.id,
+            playlist=playlist
+        ).delete()
+
+        if deleted_count == 0:
+            return Response({
+                'message': 'Not following this playlist'
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'message': 'Playlist unfollowed successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class PlaylistLikeView(APIView):
+    """
+    POST /api/playlists/{id}/like/ - Like a playlist
+    DELETE /api/playlists/{id}/like/ - Unlike a playlist
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Cannot like own playlists
+        if playlist.owner_id == request.user.id:
+            return Response({
+                'error': 'invalid_operation',
+                'message': 'Cannot like your own playlist'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Can only like public playlists
+        if playlist.visibility != 'public':
+            return Response({
+                'error': 'invalid_operation',
+                'message': 'Can only like public playlists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Create like relationship (idempotent)
+        like, created = UserPlaylistLike.objects.get_or_create(
+            user_id=request.user.id,
+            playlist=playlist
+        )
+
+        if not created:
+            return Response({
+                'message': 'Already liked this playlist'
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'message': 'Playlist liked successfully',
+            'liked_at': like.liked_at
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete like relationship
+        deleted_count, _ = UserPlaylistLike.objects.filter(
+            user_id=request.user.id,
+            playlist=playlist
+        ).delete()
+
+        if deleted_count == 0:
+            return Response({
+                'message': 'Not liking this playlist'
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'message': 'Playlist unliked successfully'
+        }, status=status.HTTP_200_OK)
