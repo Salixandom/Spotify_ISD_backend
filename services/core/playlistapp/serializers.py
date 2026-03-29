@@ -1,14 +1,30 @@
 from rest_framework import serializers
-from .models import Playlist
+from .models import Playlist, PlaylistSnapshot
+
+
+class PlaylistSnapshotSerializer(serializers.ModelSerializer):
+    """Serializer for playlist snapshots/versioning"""
+
+    class Meta:
+        model = PlaylistSnapshot
+        fields = [
+            'id', 'playlist', 'snapshot_data', 'created_by',
+            'created_at', 'change_reason', 'track_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'created_by']
 
 
 class PlaylistSerializer(serializers.ModelSerializer):
+    """Serializer for playlists with optional snapshot inclusion"""
+    snapshots = PlaylistSnapshotSerializer(many=True, read_only=True)
+
     class Meta:
         model = Playlist
         fields = [
             'id', 'owner_id', 'name', 'description',
             'visibility', 'playlist_type', 'cover_url',
             'max_songs', 'created_at', 'updated_at',
+            'snapshots',  # Include related snapshots
         ]
         read_only_fields = ['owner_id', 'created_at', 'updated_at']
 

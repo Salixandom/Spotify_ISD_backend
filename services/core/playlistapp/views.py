@@ -6,7 +6,7 @@ from django.db import connection
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
-from .serializers import PlaylistSerializer
+from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer
 from trackapp.models import Track
 
 PLAYLIST_SORT_MAP = {
@@ -1186,7 +1186,6 @@ class EnhancedBatchDeleteView(APIView):
 
                 # Create snapshot before deletion if requested
                 if create_snapshots:
-                    from .serializers import PlaylistSerializer
                     snapshot_data = PlaylistSerializer(playlist).data
                     PlaylistSnapshot.objects.create(
                         playlist=playlist,
@@ -1456,20 +1455,10 @@ class PlaylistSnapshotView(APIView):
 
         snapshots = playlist.snapshots.all()[:limit]
 
-        snapshot_data = []
-        for snapshot in snapshots:
-            snapshot_data.append({
-                'id': snapshot.id,
-                'created_at': snapshot.created_at.isoformat(),
-                'change_reason': snapshot.change_reason,
-                'track_count': snapshot.track_count,
-                'created_by': snapshot.created_by
-            })
-
         return Response({
             'playlist_id': playlist_id,
             'total': snapshots.count(),
-            'snapshots': snapshot_data
+            'snapshots': PlaylistSnapshotSerializer(snapshots, many=True).data
         })
 
     def post(self, request, playlist_id):
@@ -1492,22 +1481,20 @@ class PlaylistSnapshotView(APIView):
 
         # Create snapshot
         from .serializers import PlaylistSerializer
-        snapshot_data = PlaylistSerializer(playlist).data
+        playlist_data = PlaylistSerializer(playlist).data
 
         snapshot = PlaylistSnapshot.objects.create(
             playlist=playlist,
-            snapshot_data=snapshot_data,
+            snapshot_data=playlist_data,
             created_by=request.user.id,
             change_reason=change_reason,
             track_count=playlist.tracks.count()
         )
 
-        return Response({
-            'id': snapshot.id,
-            'created_at': snapshot.created_at.isoformat(),
-            'change_reason': snapshot.change_reason,
-            'track_count': snapshot.track_count
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            PlaylistSnapshotSerializer(snapshot).data,
+            status=status.HTTP_201_CREATED
+        )
 
     def delete(self, request, playlist_id):
         """Delete old snapshots, keep only N most recent"""
@@ -1585,7 +1572,6 @@ class PlaylistRestoreView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
         # Create snapshot of current state before restoring
-        from .serializers import PlaylistSerializer
         current_snapshot_data = PlaylistSerializer(playlist).data
         PlaylistSnapshot.objects.create(
             playlist=playlist,
