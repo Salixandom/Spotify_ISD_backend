@@ -262,6 +262,250 @@ class FeaturedPlaylistsView(APIView):
         return Response(PlaylistSerializer(qs, many=True).data)
 
 
+class DuplicatePlaylistView(APIView):
+    """
+    POST /api/playlists/{id}/duplicate/
+
+    Duplicate a playlist with all its tracks.
+    Creates a new playlist with name "{original_name} (Copy)"
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            source = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Authorization check - can only duplicate own playlists or public playlists
+        if source.owner_id != request.user.id and source.visibility != 'public':
+            return Response({
+                'error': 'forbidden',
+                'message': 'Not authorized to duplicate this playlist'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Get request body for optional parameters
+        data = request.data
+        name = data.get('name', f"{source.name} (Copy)")
+        include_tracks = data.get('include_tracks', True)
+        reset_position = data.get('reset_position', False)
+
+        # Create duplicate playlist
+        new_playlist = Playlist.objects.create(
+            owner_id=request.user.id,
+            name=name,
+            description=source.description,
+            visibility='private',  # Duplicates are always private
+            playlist_type='solo',  # Duplicates are always solo
+            max_songs=source.max_songs,
+            cover_url=source.cover_url
+        )
+
+        # Copy tracks if requested
+        if include_tracks:
+            tracks = Track.objects.filter(playlist=source).select_related('song')
+            new_tracks = []
+            for index, track in enumerate(tracks):
+                new_tracks.append(Track(
+                    playlist=new_playlist,
+                    song=track.song,
+                    added_by_id=request.user.id,
+                    position=index if not reset_position else track.position
+                ))
+
+            if new_tracks:
+                Track.objects.bulk_create(new_tracks)
+
+        return Response(
+            PlaylistSerializer(new_playlist).data,
+            status=status.HTTP_201_CREATED
+        )
+
+
+class BatchDeleteView(APIView):
+    """
+    DELETE /api/playlists/batch-delete/
+
+    Delete multiple playlists at once.
+    Body: {"playlist_ids": [1, 2, 3]}
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        playlist_ids = request.data.get('playlist_ids', [])
+
+        if not playlist_ids:
+            return Response({
+                'error': 'invalid_input',
+                'message': 'playlist_ids is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(playlist_ids, list):
+            return Response({
+                'error': 'invalid_input',
+                'message': 'playlist_ids must be a list'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Delete only user's own playlists
+        deleted, not_found, not_authorized = 0, 0, 0
+
+        for playlist_id in playlist_ids:
+            try:
+                playlist = Playlist.objects.get(id=playlist_id)
+                if playlist.owner_id == request.user.id:
+                    playlist.delete()
+                    deleted += 1
+                else:
+                    not_authorized += 1
+            except Playlist.DoesNotExist:
+                not_found += 1
+
+        return Response({
+            'deleted': deleted,
+            'not_found': not_found,
+            'not_authorized': not_authorized
+        }, status=status.HTTP_200_OK if deleted > 0 else status.HTTP_202_ACCEPTED)
+
+
+class BatchUpdateView(APIView):
+    """
+    PATCH /api/playlists/batch-update/
+
+    Update multiple playlists at once.
+    Body: {"playlist_ids": [1, 2], "updates": {"visibility": "private"}}
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        playlist_ids = request.data.get('playlist_ids', [])
+        updates = request.data.get('updates', {})
+
+        if not playlist_ids:
+            return Response({
+                'error': 'invalid_input',
+                'message': 'playlist_ids is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not updates:
+            return Response({
+                'error': 'invalid_input',
+                'message': 'updates field is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(playlist_ids, list):
+            return Response({
+                'error': 'invalid_input',
+                'message': 'playlist_ids must be a list'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update only user's own playlists
+        updated, not_found, not_authorized = 0, 0, 0
+
+        for playlist_id in playlist_ids:
+            try:
+                playlist = Playlist.objects.get(id=playlist_id)
+                if playlist.owner_id == request.user.id:
+                    # Apply updates
+                    for field, value in updates.items():
+                        if hasattr(playlist, field):
+                            setattr(playlist, field, value)
+                    playlist.save()
+                    updated += 1
+                else:
+                    not_authorized += 1
+            except Playlist.DoesNotExist:
+                not_found += 1
+
+        return Response({
+            'updated': updated,
+            'not_found': not_found,
+            'not_authorized': not_authorized
+        }, status=status.HTTP_200_OK if updated > 0 else status.HTTP_202_ACCEPTED)
+
+
+class CoverUploadView(APIView):
+    """
+    POST /api/playlists/{id}/cover/
+
+    Upload a cover image for a playlist.
+    Currently accepts cover_url as a string (for Supabase URLs or external URLs).
+    Future enhancement: Accept multipart file upload.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if playlist.owner_id != request.user.id:
+            return Response({
+                'error': 'forbidden',
+                'message': 'Not authorized to modify this playlist'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # For now, we accept cover_url in the request body
+        # Future enhancement: Handle multipart file upload
+        cover_url = request.data.get('cover_url')
+
+        if not cover_url:
+            return Response({
+                'error': 'invalid_input',
+                'message': 'cover_url is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate URL format
+        if not cover_url.startswith(('http://', 'https://')):
+            return Response({
+                'error': 'invalid_input',
+                'message': 'cover_url must be a valid HTTP(S) URL'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update cover URL
+        playlist.cover_url = cover_url
+        playlist.save()
+
+        return Response(PlaylistSerializer(playlist).data, status=status.HTTP_200_OK)
+
+
+class CoverDeleteView(APIView):
+    """
+    DELETE /api/playlists/{id}/cover/
+
+    Remove the cover image from a playlist.
+    Sets cover_url back to empty string (will show gradient placeholder).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if playlist.owner_id != request.user.id:
+            return Response({
+                'error': 'forbidden',
+                'message': 'Not authorized to modify this playlist'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Clear cover URL
+        playlist.cover_url = ''
+        playlist.save()
+
+        return Response(PlaylistSerializer(playlist).data, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def health_check(request):

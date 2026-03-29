@@ -1,0 +1,83 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774819781124,
+  "projectRoot": "/home/sakib/Taskete/Spotify_ISD_backend",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 22,
+      "lastAccessed": 1774819781098,
+      "keyFiles": [
+        "AGENT-GUIDE.md",
+        "CONTRIBUTING.md",
+        "DEPLOYMENT.md",
+        "HEALTH_CHECKS.md",
+        "MESBAH_PROGRESS_PLAN.md"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1774819781110,
+      "keyFiles": [
+        "generate-secrets.sh"
+      ]
+    },
+    "services": {
+      "path": "services",
+      "purpose": "Business logic services",
+      "fileCount": 0,
+      "lastAccessed": 1774819781115,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "services/core/playlistapp/urls.py",
+      "accessCount": 3,
+      "lastAccessed": 1774819801725,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase2.md",
+      "accessCount": 1,
+      "lastAccessed": 1774819892953,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
