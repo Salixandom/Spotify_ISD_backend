@@ -4,7 +4,7 @@ from .models import Playlist
 
 class PlaylistSerializer(serializers.ModelSerializer):
     class Meta:
-        model  = Playlist
+        model = Playlist
         fields = [
             'id', 'owner_id', 'name', 'description',
             'visibility', 'playlist_type', 'cover_url',
@@ -14,7 +14,7 @@ class PlaylistSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         playlist_type = data.get('playlist_type', getattr(self.instance, 'playlist_type', 'solo'))
-        visibility    = data.get('visibility',    getattr(self.instance, 'visibility', 'public'))
+        visibility = data.get('visibility', getattr(self.instance, 'visibility', 'public'))
         if playlist_type == 'collaborative' and visibility != 'private':
             raise serializers.ValidationError(
                 {'visibility': 'Collaborative playlists must be private.'}

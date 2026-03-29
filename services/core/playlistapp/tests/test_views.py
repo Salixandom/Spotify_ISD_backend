@@ -5,12 +5,11 @@ This module contains comprehensive tests for all playlist endpoints.
 Run with: python manage.py test playlistapp.test_views
 """
 
-from django.test import TestCase, TestCase
+from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
-from trackapp.models import Track
 
 User = get_user_model()
 

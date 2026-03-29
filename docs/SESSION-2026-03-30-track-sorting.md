@@ -585,6 +585,95 @@ Collaborator.objects.get(playlist_id=..., user_id=...)
 
 ---
 
+## 🔍 Code Quality Fixes
+
+After implementing the core features, ran flake8 on the entire backend to ensure code quality. Fixed all reported issues:
+
+### Fixed Issues
+
+**playlistapp/tests/test_views.py:**
+- F811: Removed duplicate `TestCase` import
+- F401: Removed unused `Track` import
+
+**playlistapp/urls.py:**
+- F401: Removed unused `CoverDeleteView` import
+
+**playlistapp/views.py:**
+- F401: Removed unused `PlaylistStatsSerializer` import
+- F841: Removed unused `genre` variable in SimilarPlaylistsView
+- F841: Removed unused `e` exception variable in PlaylistImportView
+- F401: Removed unused `Album` import
+- E221: Fixed spacing in `PlaylistViewSet.serializer_class` assignment
+
+**playlistapp/models.py:**
+- E221: Fixed all aligned field assignments (removed extra spaces for consistency)
+- Applied to: `Playlist`, `UserPlaylistArchive`, `UserPlaylistFollow`, `UserPlaylistLike`, `PlaylistSnapshot` models
+
+**playlistapp/serializers.py:**
+- E221: Fixed spacing in `PlaylistSerializer.Meta.model` and validation method
+
+**trackapp/models.py:**
+- E221: Fixed all aligned field assignments in `Track` and `UserTrackHide` models
+
+**trackapp/serializers.py:**
+- E221: Fixed spacing in `TrackSerializer` fields
+
+**trackapp/views.py:**
+- F401: Removed unused `Q` import (removed from line 6, kept where actually used)
+- E302: Added missing blank line before `_require_playlist_owner` function
+- E221: Fixed spacing in `TrackListView.get` method and `TRACK_SORT_MAP`
+
+### Flake8 Configuration
+
+**File:** `services/core/pyproject.toml`
+
+Added:
+```toml
+[project]
+dependencies = [
+    ...
+    "flake8==7.1.1",
+]
+
+[tool.black]
+line-length = 127
+exclude = '''
+/(\.venv-ci
+  | \.git
+  | __pycache__
+  | \.uv
+  | migrations
+  | dist
+  | build
+  | .*\.egg-info
+)/
+'''
+```
+
+### Verification
+
+```bash
+# Install flake8
+docker exec spotify_isd_backend-core-1 uv pip install flake8
+
+# Run flake8
+docker exec spotify_isd_backend-core-1 uv run flake8 \
+  --exclude=.venv,migrations --max-line-length=127 \
+  playlistapp trackapp
+
+# Result: No issues found ✅
+
+# Django system check
+docker exec spotify_isd_backend-core-1 uv run python manage.py check
+
+# Result: System check identified no issues (0 silenced) ✅
+```
+
+**Code Quality Status:** All flake8 issues resolved ✅
+**Django System Check:** Passed with no issues ✅
+
+---
+
 ## ✅ Session Success Criteria
 
 - [x] Identified missing persistent sorting functionality
@@ -597,7 +686,9 @@ Collaborator.objects.get(playlist_id=..., user_id=...)
 - [x] Used bulk_update for performance
 - [x] Used transaction.atomic() for safety
 - [x] Registered new route in URLs
-- [x] Django system check passes
+- [x] Added flake8 to project dependencies
+- [x] Fixed all flake8 code quality issues
+- [x] Django system check passes with no issues
 - [x] Created comprehensive documentation
 
 ---

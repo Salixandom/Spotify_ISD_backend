@@ -3,11 +3,11 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from django.db import connection, transaction, IntegrityError
-from django.db.models import Q
 from playlistapp.models import Playlist, UserPlaylistArchive
 from searchapp.models import Song
 from .models import Track, UserTrackHide
 from .serializers import TrackSerializer
+
 
 def _require_playlist_owner(playlist_id, user_id):
     """Returns (playlist, None) if user owns the playlist, or (None, Response) otherwise."""
@@ -45,13 +45,13 @@ def _can_edit_playlist(playlist_id, user_id):
 
 
 TRACK_SORT_MAP = {
-    'custom':   'position',
-    'title':    'song__title',
-    'artist':   'song__artist__name',
-    'album':    'song__album__name',
-    'genre':    'song__genre',
+    'custom': 'position',
+    'title': 'song__title',
+    'artist': 'song__artist__name',
+    'album': 'song__album__name',
+    'genre': 'song__genre',
     'duration': 'song__duration_seconds',
-    'year':     'song__release_year',
+    'year': 'song__release_year',
     'added_at': 'added_at',
 }
 
@@ -60,7 +60,7 @@ class TrackListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, playlist_id):
-        sort  = request.query_params.get('sort', 'custom')
+        sort = request.query_params.get('sort', 'custom')
         order = request.query_params.get('order', 'asc')
         order_field = TRACK_SORT_MAP.get(sort, 'position')
         if order == 'desc':

@@ -67,27 +67,27 @@
   },
   "hotPaths": [
     {
-      "path": "services/core/playlistapp/urls.py",
-      "accessCount": 9,
-      "lastAccessed": 1774820470258,
-      "type": "file"
-    },
-    {
       "path": "services/core/playlistapp/views.py",
-      "accessCount": 9,
-      "lastAccessed": 1774821192360,
+      "accessCount": 37,
+      "lastAccessed": 1774822190270,
       "type": "file"
     },
     {
       "path": "services/core/playlistapp/models.py",
-      "accessCount": 5,
-      "lastAccessed": 1774821114857,
+      "accessCount": 13,
+      "lastAccessed": 1774822136119,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/urls.py",
+      "accessCount": 12,
+      "lastAccessed": 1774821944341,
       "type": "file"
     },
     {
       "path": "services/core/trackapp/views.py",
-      "accessCount": 4,
-      "lastAccessed": 1774821157504,
+      "accessCount": 8,
+      "lastAccessed": 1774822117606,
       "type": "file"
     },
     {
@@ -97,15 +97,45 @@
       "type": "file"
     },
     {
-      "path": "docs/SESSION-2026-03-30-phase2.md",
-      "accessCount": 1,
-      "lastAccessed": 1774819892953,
+      "path": "services/core/playlistapp/serializers.py",
+      "accessCount": 3,
+      "lastAccessed": 1774822064890,
       "type": "file"
     },
     {
-      "path": "services/core/playlistapp/serializers.py",
+      "path": "services/core/trackapp/models.py",
+      "accessCount": 3,
+      "lastAccessed": 1774822088642,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-track-sorting.md",
+      "accessCount": 3,
+      "lastAccessed": 1774822221261,
+      "type": "file"
+    },
+    {
+      "path": "services/core/pyproject.toml",
+      "accessCount": 2,
+      "lastAccessed": 1774821658978,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/tests/test_views.py",
+      "accessCount": 2,
+      "lastAccessed": 1774821926931,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/serializers.py",
+      "accessCount": 2,
+      "lastAccessed": 1774822097792,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase2.md",
       "accessCount": 1,
-      "lastAccessed": 1774820005246,
+      "lastAccessed": 1774819892953,
       "type": "file"
     },
     {
@@ -184,12 +214,6 @@
       "path": "docs/TRACK_SORTING_ENHANCEMENT.md",
       "accessCount": 1,
       "lastAccessed": 1774821278622,
-      "type": "file"
-    },
-    {
-      "path": "docs/SESSION-2026-03-30-track-sorting.md",
-      "accessCount": 1,
-      "lastAccessed": 1774821352630,
       "type": "file"
     }
   ],

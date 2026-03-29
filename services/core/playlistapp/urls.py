@@ -9,7 +9,6 @@ from .views import (
     BatchDeleteView,
     BatchUpdateView,
     CoverUploadView,
-    CoverDeleteView,
     UserPlaylistsView,
     PlaylistFollowView,
     PlaylistLikeView,
