@@ -8,6 +8,7 @@ from searchapp.models import Song
 from .models import Track, UserTrackHide
 from .serializers import TrackSerializer
 
+
 def _require_playlist_owner(playlist_id, user_id):
     """Returns (playlist, None) if user owns the playlist, or (None, Response) otherwise."""
     try:
@@ -19,14 +20,38 @@ def _require_playlist_owner(playlist_id, user_id):
     return playlist, None
 
 
+def _can_edit_playlist(playlist_id, user_id):
+    """
+    Check if user can edit playlist (owner or collaborator).
+    Returns (playlist, None) if authorized, or (None, Response) otherwise.
+    """
+    try:
+        playlist = Playlist.objects.get(id=playlist_id)
+    except Playlist.DoesNotExist:
+        return None, Response({'error': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Owner can always edit
+    if playlist.owner_id == user_id:
+        return playlist, None
+
+    # Check if user is a collaborator
+    try:
+        # Import here to avoid circular imports
+        from collaboration.collabapp.models import Collaborator
+        Collaborator.objects.get(playlist_id=playlist_id, user_id=user_id)
+        return playlist, None
+    except Collaborator.DoesNotExist:
+        return None, Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+
 TRACK_SORT_MAP = {
-    'custom':   'position',
-    'title':    'song__title',
-    'artist':   'song__artist__name',
-    'album':    'song__album__name',
-    'genre':    'song__genre',
+    'custom': 'position',
+    'title': 'song__title',
+    'artist': 'song__artist__name',
+    'album': 'song__album__name',
+    'genre': 'song__genre',
     'duration': 'song__duration_seconds',
-    'year':     'song__release_year',
+    'year': 'song__release_year',
     'added_at': 'added_at',
 }
 
@@ -35,7 +60,7 @@ class TrackListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, playlist_id):
-        sort  = request.query_params.get('sort', 'custom')
+        sort = request.query_params.get('sort', 'custom')
         order = request.query_params.get('order', 'asc')
         order_field = TRACK_SORT_MAP.get(sort, 'position')
         if order == 'desc':
@@ -126,6 +151,8 @@ class TrackReorderRemoveView(APIView):
     Remaining tracks are assigned positions 0, 1, 2, ... matching the sent order.
     This handles the case where the user removes tracks while reordering and clicks save.
     Both operations happen atomically.
+
+    Available to: Owner and collaborators
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -138,12 +165,14 @@ class TrackReorderRemoveView(APIView):
         if len(ordered_ids) != len(set(ordered_ids)):
             return Response({'error': 'track_ids must not contain duplicates'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Check authorization (owner or collaborator)
+        playlist, err = _can_edit_playlist(playlist_id, request.user.id)
+        if err:
+            return err
+
         try:
             with transaction.atomic():
                 playlist = Playlist.objects.select_for_update().get(id=playlist_id)
-
-                if playlist.owner_id != request.user.id:
-                    return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
 
                 existing_ids = set(
                     Track.objects.filter(playlist=playlist).values_list('id', flat=True)
@@ -241,3 +270,87 @@ def health_check(request):
             },
             status=503,
         )
+
+
+class TrackSortView(APIView):
+    """
+    PUT /<playlist_id>/sort/
+
+    Sorts all tracks in a playlist by a specified field and persists the order.
+    This updates the position field for all tracks based on the sort criteria.
+
+    Available to: Owner and collaborators
+
+    Request body:
+    {
+        "sort_by": "title|artist|album|genre|duration|year|added_at",
+        "order": "asc|desc"
+    }
+
+    Response: List of tracks with updated positions
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request, playlist_id):
+        sort_by = request.data.get('sort_by', 'custom')
+        order = request.data.get('order', 'asc')
+
+        if sort_by not in TRACK_SORT_MAP:
+            return Response({
+                'error': 'invalid_sort_field',
+                'message': f'Sort field must be one of: {", ".join(TRACK_SORT_MAP.keys())}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if order not in ['asc', 'desc']:
+            return Response({
+                'error': 'invalid_order',
+                'message': 'Order must be asc or desc'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check authorization (owner or collaborator)
+        playlist, err = _can_edit_playlist(playlist_id, request.user.id)
+        if err:
+            return err
+
+        try:
+            with transaction.atomic():
+                # Get all tracks with related data
+                tracks = Track.objects.filter(playlist=playlist).select_related(
+                    'song', 'song__artist', 'song__album'
+                )
+
+                # Determine sort field
+                order_field = TRACK_SORT_MAP[sort_by]
+                if order == 'desc':
+                    order_field = '-' + order_field
+
+                # Sort tracks in Python (since we need to update positions)
+                # For custom/position sort, we just use current order
+                if sort_by == 'custom':
+                    sorted_tracks = list(tracks.order_by('position'))
+                else:
+                    # Sort using Django's ordering, then convert to list
+                    sorted_tracks = list(tracks.order_by(order_field))
+
+                # Update positions to match new order
+                track_updates = []
+                for index, track in enumerate(sorted_tracks):
+                    track.position = index
+                    track_updates.append(track)
+
+                # Bulk update positions
+                Track.objects.bulk_update(track_updates, ['position'])
+
+                return Response({
+                    'message': f'Playlist sorted by {sort_by} ({order})',
+                    'sort_by': sort_by,
+                    'order': order,
+                    'tracks_updated': len(sorted_tracks),
+                    'tracks': TrackSerializer(sorted_tracks, many=True).data
+                })
+
+        except Exception as e:
+            return Response({
+                'error': 'sort_failed',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

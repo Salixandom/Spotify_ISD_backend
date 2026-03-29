@@ -1,0 +1,221 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774819781124,
+  "projectRoot": "/home/sakib/Taskete/Spotify_ISD_backend",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 22,
+      "lastAccessed": 1774819781098,
+      "keyFiles": [
+        "AGENT-GUIDE.md",
+        "CONTRIBUTING.md",
+        "DEPLOYMENT.md",
+        "HEALTH_CHECKS.md",
+        "MESBAH_PROGRESS_PLAN.md"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1774819781110,
+      "keyFiles": [
+        "generate-secrets.sh"
+      ]
+    },
+    "services": {
+      "path": "services",
+      "purpose": "Business logic services",
+      "fileCount": 0,
+      "lastAccessed": 1774819781115,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "services/core/playlistapp/views.py",
+      "accessCount": 37,
+      "lastAccessed": 1774822190270,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/models.py",
+      "accessCount": 13,
+      "lastAccessed": 1774822136119,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/urls.py",
+      "accessCount": 12,
+      "lastAccessed": 1774821944341,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/views.py",
+      "accessCount": 8,
+      "lastAccessed": 1774822117606,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/urls.py",
+      "accessCount": 3,
+      "lastAccessed": 1774821214301,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/serializers.py",
+      "accessCount": 3,
+      "lastAccessed": 1774822064890,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/models.py",
+      "accessCount": 3,
+      "lastAccessed": 1774822088642,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-track-sorting.md",
+      "accessCount": 3,
+      "lastAccessed": 1774822221261,
+      "type": "file"
+    },
+    {
+      "path": "services/core/pyproject.toml",
+      "accessCount": 2,
+      "lastAccessed": 1774821658978,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/tests/test_views.py",
+      "accessCount": 2,
+      "lastAccessed": 1774821926931,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/serializers.py",
+      "accessCount": 2,
+      "lastAccessed": 1774822097792,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase2.md",
+      "accessCount": 1,
+      "lastAccessed": 1774819892953,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase3.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820063116,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase4.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820347339,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase5.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820506506,
+      "type": "file"
+    },
+    {
+      "path": "docs/PLAYLIST_API_DOCUMENTATION.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820624034,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/test_views.py",
+      "accessCount": 1,
+      "lastAccessed": 1774820644352,
+      "type": "file"
+    },
+    {
+      "path": "docs/PERFORMANCE_OPTIMIZATION.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820671353,
+      "type": "file"
+    },
+    {
+      "path": "docs/DEPLOYMENT_CHECKLIST.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820708894,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase6.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820726972,
+      "type": "file"
+    },
+    {
+      "path": "services/core",
+      "accessCount": 1,
+      "lastAccessed": 1774820976251,
+      "type": "directory"
+    },
+    {
+      "path": "services/core/playlistapp",
+      "accessCount": 1,
+      "lastAccessed": 1774820980326,
+      "type": "directory"
+    },
+    {
+      "path": "services/collaboration/collabapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1774821083662,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/collabapp/views.py",
+      "accessCount": 1,
+      "lastAccessed": 1774821093363,
+      "type": "file"
+    },
+    {
+      "path": "docs/TRACK_SORTING_ENHANCEMENT.md",
+      "accessCount": 1,
+      "lastAccessed": 1774821278622,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}
