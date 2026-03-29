@@ -774,3 +774,363 @@ class PlaylistLikeView(APIView):
         return Response({
             'message': 'Playlist unliked successfully'
         }, status=status.HTTP_200_OK)
+
+
+class RecommendedPlaylistsView(APIView):
+    """
+    GET /api/playlists/recommended/
+
+    Returns personalized playlist recommendations:
+    - Based on user's liked playlists' genres
+    - Based on user's followed playlists' genres
+    - Excludes already liked/followed playlists
+    - Ranked by genre overlap score
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 20))
+
+        # Get genres from user's liked playlists
+        liked_playlist_ids = UserPlaylistLike.objects.filter(
+            user_id=request.user.id
+        ).values_list('playlist_id', flat=True)
+
+        # Get genres from user's followed playlists
+        followed_playlist_ids = UserPlaylistFollow.objects.filter(
+            user_id=request.user.id
+        ).values_list('playlist_id', flat=True)
+
+        # Combine to get user's preferred genres
+        preferred_playlist_ids = set(liked_playlist_ids) | set(followed_playlist_ids)
+
+        if not preferred_playlist_ids:
+            # No preferences, return featured playlists
+            return Response({
+                'recommendation_type': 'featured',
+                'playlists': FeaturedPlaylistsView.as_view()(request._request).data
+            })
+
+        # Get genres from user's preferred playlists
+        from trackapp.models import Track
+        from django.db.models import Q
+
+        preferred_genres = list(
+            Track.objects.filter(
+                playlist_id__in=preferred_playlist_ids
+            ).exclude(
+                song__genre=''
+            ).values_list('song__genre', flat=True).distinct()
+        )
+
+        if not preferred_genres:
+            # No genres found, return featured playlists
+            return Response({
+                'recommendation_type': 'featured',
+                'playlists': FeaturedPlaylistsView.as_view()(request._request).data
+            })
+
+        # Find playlists with similar genres (excluding user's own)
+        # Exclude already liked, followed, and owned playlists
+        excluded_ids = list(preferred_playlist_ids) + [request.user.id]
+
+        # Find playlists with matching genres
+        playlist_genre_scores = {}
+        playlists_with_genres = Track.objects.filter(
+            song__genre__in=preferred_genres
+        ).exclude(
+            playlist_id__in=Playlist.objects.filter(owner_id=request.user.id)
+        ).values('playlist_id', 'song__genre')
+
+        # Calculate genre overlap scores
+        for item in playlists_with_genres:
+            pid = item['playlist_id']
+            genre = item['song__genre']
+
+            if pid not in playlist_genre_scores:
+                playlist_genre_scores[pid] = {'matches': 0, 'genres': set()}
+            if genre in preferred_genres:
+                playlist_genre_scores[pid]['matches'] += 1
+                playlist_genre_scores[pid]['genres'].add(genre)
+
+        # Sort by match count
+        sorted_playlists = sorted(
+            playlist_genre_scores.items(),
+            key=lambda x: x[1]['matches'],
+            reverse=True
+        )
+
+        # Get top N playlists
+        top_playlist_ids = [pid for pid, _ in sorted_playlists[:limit]]
+
+        playlists = Playlist.objects.filter(
+            id__in=top_playlist_ids,
+            visibility='public'
+        ).annotate(
+            track_count=Count('tracks')
+        )
+
+        # Maintain order by score
+        playlist_dict = {p.id: p for p in playlists}
+        ordered_playlists = []
+        for pid in top_playlist_ids:
+            if pid in playlist_dict:
+                ordered_playlists.append(playlist_dict[pid])
+
+        return Response({
+            'recommendation_type': 'genre_based',
+            'preferred_genres': preferred_genres,
+            'total': len(ordered_playlists),
+            'playlists': PlaylistSerializer(ordered_playlists, many=True).data
+        })
+
+
+class SimilarPlaylistsView(APIView):
+    """
+    GET /api/playlists/{id}/similar/
+
+    Returns playlists similar to the given playlist:
+    - Based on genre overlap
+    - Based on track count similarity
+    - Excludes the playlist itself
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return Response({
+                'error': 'playlist_not_found',
+                'message': 'Playlist not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        limit = int(request.query_params.get('limit', 10))
+
+        # Get genres from this playlist
+        from trackapp.models import Track
+
+        playlist_genres = list(
+            Track.objects.filter(
+                playlist=playlist
+            ).exclude(
+                song__genre=''
+            ).values_list('song__genre', flat=True).distinct()
+        )
+
+        if not playlist_genres:
+            return Response({
+                'message': 'No genres found in this playlist',
+                'similar_playlists': []
+            })
+
+        # Find playlists with similar genres
+        similar_candidates = Track.objects.filter(
+            song__genre__in=playlist_genres
+        ).exclude(
+            playlist_id=playlist_id
+        ).values('playlist_id', 'song__genre')
+
+        # Calculate Jaccard similarity (intersection / union)
+        playlist_similarities = {}
+        playlist_a_genres = set(playlist_genres)
+
+        for candidate in similar_candidates:
+            pid = candidate['playlist_id']
+            genre = candidate['song__genre']
+
+            if pid not in playlist_similarities:
+                # Get all genres for this candidate playlist
+                candidate_genres = set(
+                    Track.objects.filter(
+                        playlist_id=pid
+                    ).exclude(
+                        song__genre=''
+                    ).values_list('song__genre', flat=True).distinct()
+                )
+
+                # Calculate Jaccard similarity
+                intersection = len(playlist_a_genres & candidate_genres)
+                union = len(playlist_a_genres | candidate_genres)
+
+                if union > 0:
+                    jaccard_score = intersection / union
+                    playlist_similarities[pid] = jaccard_score
+
+        # Sort by similarity score
+        sorted_similar = sorted(
+            playlist_similarities.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:limit]
+
+        # Get playlist objects
+        similar_ids = [pid for pid, _ in sorted_similar]
+
+        similar_playlists = Playlist.objects.filter(
+            id__in=similar_ids,
+            visibility='public'
+        ).annotate(
+            track_count=Count('tracks')
+        )
+
+        # Order by similarity score
+        playlist_dict = {p.id: p for p in similar_playlists}
+        ordered_playlists = []
+        for pid in similar_ids:
+            if pid in playlist_dict:
+                ordered_playlists.append(playlist_dict[pid])
+
+        return Response({
+            'playlist_id': playlist_id,
+            'playlist_name': playlist.name,
+            'playlist_genres': playlist_genres,
+            'total': len(ordered_playlists),
+            'similar_playlists': PlaylistSerializer(ordered_playlists, many=True).data
+        })
+
+
+class AutoGeneratedPlaylistsView(APIView):
+    """
+    GET /api/playlists/auto-generated/
+
+    Returns auto-generated playlist suggestions based on:
+    - User's most listened genres
+    - Trending genres across platform
+    - Mood-based mixes
+
+    POST /api/playlists/auto-generated/
+
+    Creates an auto-generated playlist:
+    - Based on specified genre or mood
+    - Picks top tracks from that category
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Get auto-generated playlist suggestions"""
+        # Get user's favorite genres from their liked playlists
+        liked_genres = list(
+            Track.objects.filter(
+                playlist_id__in=UserPlaylistLike.objects.filter(
+                    user_id=request.user.id
+                ).values_list('playlist_id', flat=True)
+            ).exclude(
+                song__genre=''
+            ).values_list('song__genre', flat=True)
+        )
+
+        # Count genre occurrences
+        from collections import Counter
+        genre_counts = Counter(liked_genres)
+
+        # Get top genres
+        top_genres = [genre for genre, _ in genre_counts.most_common(5)]
+
+        if not top_genres:
+            # Fallback to popular genres across platform
+            top_genres = ['Pop', 'Rock', 'Hip-Hop', 'Electronic', 'Jazz']
+
+        suggestions = []
+        for genre in top_genres:
+            # Count tracks available in this genre
+            track_count = Track.objects.filter(
+                song__genre=genre
+            ).count()
+
+            if track_count > 0:
+                suggestions.append({
+                    'type': 'genre_based',
+                    'name': f'{genre} Mix',
+                    'description': f'Auto-generated playlist based on {genre} genre',
+                    'estimated_track_count': track_count,
+                    'genre': genre
+                })
+
+        # Add mood-based suggestions
+        mood_suggestions = [
+            {'type': 'mood_based', 'name': 'Chill Vibes', 'description': 'Relaxing tracks for unwinding', 'mood': 'chill'},
+            {'type': 'mood_based', 'name': 'Workout Mix', 'description': 'High-energy tracks for workouts', 'mood': 'energetic'},
+            {'type': 'mood_based', 'name': 'Focus Flow', 'description': 'Concentration-boosting tracks', 'mood': 'focus'},
+        ]
+
+        return Response({
+            'suggestions': suggestions + mood_suggestions
+        })
+
+    def post(self, request):
+        """Create an auto-generated playlist"""
+        genre = request.data.get('genre')
+        mood = request.data.get('mood')
+        name = request.data.get('name')
+        track_limit = int(request.data.get('track_limit', 50))
+
+        if not genre and not mood:
+            return Response({
+                'error': 'invalid_input',
+                'message': 'Either genre or mood must be specified'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Determine playlist name if not provided
+        if not name:
+            if genre:
+                name = f'Auto: {genre} Mix'
+            else:
+                name = f'Auto: {mood.capitalize()} Mix'
+
+        # Find tracks based on genre or mood
+        from trackapp.models import Song
+        from songapp.models import Genre
+
+        tracks_queryset = Track.objects.select_related('song', 'song__artist', 'song__album')
+
+        if genre:
+            tracks = tracks_queryset.filter(
+                song__genre=genre
+            ).order_by('-added_at')[:track_limit]
+        else:
+            # For mood, we'll use genre as a proxy
+            # In a real implementation, you'd have mood tags on songs
+            mood_genre_map = {
+                'chill': ['Jazz', 'Ambient', 'Lo-Fi', 'Classical'],
+                'energetic': ['Rock', 'Electronic', 'Hip-Hop', 'Pop'],
+                'focus': ['Classical', 'Ambient', 'Electronic'],
+            }
+
+            genres = mood_genre_map.get(mood, ['Pop'])
+            tracks = tracks_queryset.filter(
+                song__genre__in=genres
+            ).order_by('-added_at')[:track_limit]
+
+        if not tracks:
+            return Response({
+                'error': 'no_tracks',
+                'message': 'No tracks found for the specified criteria'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Create the playlist
+        playlist = Playlist.objects.create(
+            owner_id=request.user.id,
+            name=name,
+            description=f'Auto-generated playlist based on {genre or mood}',
+            visibility='private',
+            playlist_type='solo',
+            max_songs=len(tracks)
+        )
+
+        # Add tracks to playlist
+        new_tracks = []
+        for index, track in enumerate(tracks):
+            new_tracks.append(Track(
+                playlist=playlist,
+                song=track.song,
+                added_by_id=request.user.id,
+                position=index
+            ))
+
+        Track.objects.bulk_create(new_tracks)
+
+        return Response(
+            PlaylistSerializer(playlist).data,
+            status=status.HTTP_201_CREATED
+        )

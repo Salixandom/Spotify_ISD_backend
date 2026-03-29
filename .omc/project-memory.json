@@ -67,15 +67,15 @@
   },
   "hotPaths": [
     {
-      "path": "services/core/playlistapp/views.py",
-      "accessCount": 6,
-      "lastAccessed": 1774819998380,
+      "path": "services/core/playlistapp/urls.py",
+      "accessCount": 7,
+      "lastAccessed": 1774820325090,
       "type": "file"
     },
     {
-      "path": "services/core/playlistapp/urls.py",
-      "accessCount": 5,
-      "lastAccessed": 1774820017960,
+      "path": "services/core/playlistapp/views.py",
+      "accessCount": 6,
+      "lastAccessed": 1774819998380,
       "type": "file"
     },
     {
@@ -100,6 +100,12 @@
       "path": "docs/SESSION-2026-03-30-phase3.md",
       "accessCount": 1,
       "lastAccessed": 1774820063116,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase4.md",
+      "accessCount": 1,
+      "lastAccessed": 1774820347339,
       "type": "file"
     }
   ],
