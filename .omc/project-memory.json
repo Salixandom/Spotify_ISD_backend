@@ -68,14 +68,20 @@
   "hotPaths": [
     {
       "path": "services/core/playlistapp/views.py",
-      "accessCount": 121,
-      "lastAccessed": 1774829088241,
+      "accessCount": 124,
+      "lastAccessed": 1774830102428,
       "type": "file"
     },
     {
       "path": "services/core/trackapp/views.py",
-      "accessCount": 54,
-      "lastAccessed": 1774828052458,
+      "accessCount": 55,
+      "lastAccessed": 1774829956437,
+      "type": "file"
+    },
+    {
+      "path": "services/core/searchapp/views.py",
+      "accessCount": 19,
+      "lastAccessed": 1774830120110,
       "type": "file"
     },
     {
@@ -86,14 +92,8 @@
     },
     {
       "path": "services/core/playlistapp/models.py",
-      "accessCount": 16,
-      "lastAccessed": 1774828952463,
-      "type": "file"
-    },
-    {
-      "path": "services/core/searchapp/views.py",
-      "accessCount": 16,
-      "lastAccessed": 1774829290265,
+      "accessCount": 18,
+      "lastAccessed": 1774829866095,
       "type": "file"
     },
     {
@@ -103,15 +103,15 @@
       "type": "file"
     },
     {
-      "path": "services/core/playlistapp/serializers.py",
-      "accessCount": 12,
-      "lastAccessed": 1774829097260,
+      "path": "services/core/historyapp/views.py",
+      "accessCount": 13,
+      "lastAccessed": 1774829969362,
       "type": "file"
     },
     {
-      "path": "services/core/historyapp/views.py",
-      "accessCount": 10,
-      "lastAccessed": 1774829540891,
+      "path": "services/core/playlistapp/serializers.py",
+      "accessCount": 12,
+      "lastAccessed": 1774829097260,
       "type": "file"
     },
     {
@@ -127,15 +127,15 @@
       "type": "file"
     },
     {
-      "path": "services/core/trackapp/urls.py",
-      "accessCount": 3,
-      "lastAccessed": 1774821214301,
+      "path": "services/core/trackapp/models.py",
+      "accessCount": 5,
+      "lastAccessed": 1774829877557,
       "type": "file"
     },
     {
-      "path": "services/core/trackapp/models.py",
+      "path": "services/core/trackapp/urls.py",
       "accessCount": 3,
-      "lastAccessed": 1774822088642,
+      "lastAccessed": 1774821214301,
       "type": "file"
     },
     {
@@ -271,6 +271,12 @@
       "type": "file"
     },
     {
+      "path": "services/core",
+      "accessCount": 2,
+      "lastAccessed": 1774829835749,
+      "type": "directory"
+    },
+    {
       "path": "docs/SESSION-2026-03-30-phase2.md",
       "accessCount": 1,
       "lastAccessed": 1774819892953,
@@ -299,12 +305,6 @@
       "accessCount": 1,
       "lastAccessed": 1774820708894,
       "type": "file"
-    },
-    {
-      "path": "services/core",
-      "accessCount": 1,
-      "lastAccessed": 1774820976251,
-      "type": "directory"
     },
     {
       "path": "services/collaboration/collabapp/models.py",
@@ -347,6 +347,18 @@
       "accessCount": 1,
       "lastAccessed": 1774829509465,
       "type": "file"
+    },
+    {
+      "path": "services/core/utils/mixins.py",
+      "accessCount": 1,
+      "lastAccessed": 1774829819551,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp",
+      "accessCount": 1,
+      "lastAccessed": 1774829846341,
+      "type": "directory"
     }
   ],
   "userDirectives": []

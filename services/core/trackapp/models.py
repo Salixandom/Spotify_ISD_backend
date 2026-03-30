@@ -29,6 +29,11 @@ class Track(models.Model):
             models.Index(fields=['playlist', 'position']),
             models.Index(fields=['playlist', 'added_at']),
             models.Index(fields=['added_by_id']),
+            # Composite indexes for common query patterns
+            models.Index(fields=['song', '-added_at']),  # Songs ordered by recently added
+            models.Index(fields=['playlist', '-position']),  # Tracks in order (already exists)
+            models.Index(fields=['playlist', '-added_at']),  # Recently added tracks (already exists)
+            models.Index(fields=['added_by_id', '-added_at']),  # User's recent additions
         ]
 
     def __str__(self):

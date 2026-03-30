@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"docker exec spotify_isd_backend-core-1 uv run pytest tests/unit/test_history_models.py::TestPlayModel::test_play_ordering -v --tb=short\",\"description\":\"Check failing test details\"}",
+  "error": "Exit code 1\n============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.2, pluggy-1.6.0 -- /app/.venv/bin/python3\ncachedir: .pytest_cache\ndjango: version: 4.2.17, settings: core.settings (from env)\nrootdir: /app\nconfigfile: pytest.ini\nplugins: anyio-4.13.0, django-test-plus-2.4.1, django-4.12.0\ncollecting ... collected 1 item\n\ntests/unit/test_history_models.py::TestPlayModel::test_play_ordering FAILED [100%]\n\n=====================...",
+  "timestamp": "2026-03-30T00:30:19.338Z",
+  "retry_count": 2
+}

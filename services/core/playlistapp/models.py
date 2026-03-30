@@ -30,6 +30,10 @@ class Playlist(models.Model):
             models.Index(fields=['created_at']),
             models.Index(fields=['updated_at']),
             models.Index(fields=['playlist_type']),
+            # Composite indexes for common query patterns
+            models.Index(fields=['owner_id', '-updated_at']),  # User's playlists ordered by recent
+            models.Index(fields=['visibility', '-created_at']),  # Public playlists ordered by recent
+            models.Index(fields=['visibility', 'playlist_type']),  # Public playlists by type
         ]
 
     def __str__(self):

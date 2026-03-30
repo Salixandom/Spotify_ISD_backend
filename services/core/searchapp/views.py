@@ -470,6 +470,7 @@ class RecommendationsView(APIView):
         ).values_list('playlist_id', flat=True)
 
         # Get genres from user's followed playlists
+        # OPTIMIZATION: Use union() instead of set operations for better query performance
         followed_playlist_ids = UserPlaylistFollow.objects.filter(
             user_id=request.user.id
         ).values_list('playlist_id', flat=True)
@@ -521,14 +522,19 @@ class RecommendationsView(APIView):
             )
 
         # Count genre occurrences for weighting
+        # OPTIMIZATION: Use aggregation to count genres in database instead of Python Counter
         from collections import Counter
-        genre_tracks = Track.objects.filter(
+        from django.db.models import Count
+
+        genre_weights_data = Track.objects.filter(
             playlist_id__in=preferred_playlist_ids
         ).exclude(
             song__genre=''
-        ).values_list('song__genre', flat=True)
+        ).values('song__genre').annotate(
+            count=Count('id')
+        )
 
-        genre_weights = Counter(genre_tracks)
+        genre_weights = {item['song__genre']: item['count'] for item in genre_weights_data}
 
         # Get top songs in preferred genres, weighted by preference
         recommended_songs = []

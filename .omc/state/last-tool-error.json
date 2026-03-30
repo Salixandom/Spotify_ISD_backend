@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"docker exec spotify_isd_backend-collaboration-1 uv run python manage.py check\",\"description\":\"Run Django system checks on collaboration service\"}",
-  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"/app/manage.py\", line 23, in <module>\n    main()\n  File \"/app/manage.py\", line 19, in main\n    execute_from_command_line(sys.argv)\n  File \"/app/.venv/lib/python3.11/site-packages/django/core/management/__init__.py\", line 442, in execute_from_command_line\n    utility.execute()\n  File \"/app/.venv/lib/python3.11/site-packages/django/core/management/__init__.py\", line 436, in execute\n    self.fetch_command(subcommand).run_from_argv(self.argv)\n  ...",
-  "timestamp": "2026-03-29T23:46:44.875Z",
-  "retry_count": 1
-}
