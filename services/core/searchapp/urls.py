@@ -4,6 +4,9 @@ from .views import (
     SongSearchView, PlaylistSearchView,
     ArtistListView, ArtistDetailView,
     AlbumListView, AlbumDetailView,
+    GenreListView, GenreDetailView,
+    NewReleasesView, TrendingView,
+    SimilarSongsView, RecommendationsView,
     health_check,
 )
 
@@ -17,4 +20,12 @@ urlpatterns = [
     path('artists/<int:artist_id>/', ArtistDetailView.as_view()),
     path('albums/', AlbumListView.as_view()),
     path('albums/<int:album_id>/', AlbumDetailView.as_view()),
+
+    # Discovery endpoints
+    path('discover/genres/', GenreListView.as_view(), name='genre-list'),
+    path('discover/genres/<str:genre_name>/', GenreDetailView.as_view(), name='genre-detail'),
+    path('discover/new-releases/', NewReleasesView.as_view(), name='new-releases'),
+    path('discover/trending/', TrendingView.as_view(), name='trending'),
+    path('discover/similar/<int:song_id>/', SimilarSongsView.as_view(), name='similar-songs'),
+    path('discover/recommendations/', RecommendationsView.as_view(), name='recommendations'),
 ]

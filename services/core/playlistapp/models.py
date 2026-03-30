@@ -30,6 +30,10 @@ class Playlist(models.Model):
             models.Index(fields=['created_at']),
             models.Index(fields=['updated_at']),
             models.Index(fields=['playlist_type']),
+            # Composite indexes for common query patterns
+            models.Index(fields=['owner_id', '-updated_at']),  # User's playlists ordered by recent
+            models.Index(fields=['visibility', '-created_at']),  # Public playlists ordered by recent
+            models.Index(fields=['visibility', 'playlist_type']),  # Public playlists by type
         ]
 
     def __str__(self):
@@ -100,3 +104,58 @@ class PlaylistSnapshot(models.Model):
 
     def __str__(self):
         return f"Snapshot of {self.playlist.name} at {self.created_at}"
+
+
+class PlaylistComment(models.Model):
+    """
+    Comments on playlists with threading support.
+    """
+    playlist_id = models.IntegerField(db_index=True)
+    user_id = models.IntegerField(db_index=True)
+    parent_id = models.IntegerField(null=True, blank=True, db_index=True)  # For threaded replies
+    content = models.TextField()
+
+    # Engagement
+    likes_count = models.IntegerField(default=0)
+
+    # Moderation
+    is_edited = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['playlist_id', '-created_at']),
+            models.Index(fields=['user_id']),
+            models.Index(fields=['parent_id']),
+            models.Index(fields=['-created_at']),
+        ]
+        verbose_name = 'Playlist Comment'
+        verbose_name_plural = 'Playlist Comments'
+
+    def __str__(self):
+        return f"Comment by {self.user_id} on playlist {self.playlist_id}"
+
+
+class PlaylistCommentLike(models.Model):
+    """
+    Likes on playlist comments.
+    """
+    comment_id = models.IntegerField(db_index=True)
+    user_id = models.IntegerField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        unique_together = ('comment_id', 'user_id')
+        indexes = [
+            models.Index(fields=['comment_id']),
+            models.Index(fields=['user_id']),
+            models.Index(fields=['-created_at']),
+        ]
+        verbose_name = 'Playlist Comment Like'
+        verbose_name_plural = 'Playlist Comment Likes'
+
+    def __str__(self):
+        return f"Like by User {self.user_id} on Comment {self.comment_id}"

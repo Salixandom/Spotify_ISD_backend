@@ -1,12 +1,19 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from django.db import connection
+from utils.responses import (
+    SuccessResponse,
+    ErrorResponse,
+    ValidationErrorResponse,
+    NotFoundResponse,
+    ForbiddenResponse,
+    ServiceUnavailableResponse,
+)
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
-from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer
+from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot, PlaylistComment, PlaylistCommentLike
+from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer, PlaylistCommentSerializer, PlaylistCommentLikeSerializer
 from trackapp.models import Track
 
 PLAYLIST_SORT_MAP = {
@@ -137,13 +144,13 @@ class PlaylistViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         playlist = self.get_object()
         if playlist.owner_id != request.user.id:
-            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
         return super().destroy(request, *args, **kwargs)
 
 
@@ -164,17 +171,11 @@ class PlaylistStatsView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Check authorization
         if playlist.owner_id != request.user.id and playlist.visibility != 'public':
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized to view this playlist'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized to view this playlist')
 
         # Track statistics
         tracks = Track.objects.filter(playlist=playlist).select_related(
@@ -201,12 +202,16 @@ class PlaylistStatsView(APIView):
         last_track = tracks.order_by('-added_at').first()
         last_track_added = last_track.added_at if last_track else None
 
-        # Collaborator count from collabapp
+        # Collaborator count from collabapp via service client
         try:
-            from collaboration.collabapp.models import Collaborator
-            collaborator_count = Collaborator.objects.filter(playlist_id=playlist.id).count()
-        except ImportError:
-            # Fallback if collabapp not available
+            from utils.service_clients import CollaborationServiceClient
+            auth_token = request.headers.get('Authorization', '')
+            collaborator_count = CollaborationServiceClient.get_collaborator_count(
+                playlist.id,
+                auth_token
+            )
+        except Exception:
+            # Fallback if service communication fails
             collaborator_count = 0
 
         # Follow/like status
@@ -230,24 +235,27 @@ class PlaylistStatsView(APIView):
         seconds = total_duration % 60
         duration_formatted = f"{hours}:{minutes:02d}:{seconds:02d}"
 
-        return Response({
-            'id': playlist.id,
-            'name': playlist.name,
-            'total_tracks': total_tracks,
-            'total_duration_seconds': total_duration,
-            'total_duration_formatted': duration_formatted,
-            'genres': genres,
-            'unique_artists': unique_artists,
-            'unique_albums': unique_albums,
-            'last_track_added': last_track_added,
-            'collaborator_count': collaborator_count,
-            'follower_count': follower_count,
-            'like_count': like_count,
-            'is_followed': is_followed,
-            'is_liked': is_liked,
-            'owner_id': playlist.owner_id,
-            'cover_url': playlist.cover_url
-        })
+        return SuccessResponse(
+            data={
+                'id': playlist.id,
+                'name': playlist.name,
+                'total_tracks': total_tracks,
+                'total_duration_seconds': total_duration,
+                'total_duration_formatted': duration_formatted,
+                'genres': genres,
+                'unique_artists': unique_artists,
+                'unique_albums': unique_albums,
+                'last_track_added': last_track_added,
+                'collaborator_count': collaborator_count,
+                'follower_count': follower_count,
+                'like_count': like_count,
+                'is_followed': is_followed,
+                'is_liked': is_liked,
+                'owner_id': playlist.owner_id,
+                'cover_url': playlist.cover_url
+            },
+            message='Playlist statistics retrieved successfully'
+        )
 
 
 class FeaturedPlaylistsView(APIView):
@@ -282,7 +290,10 @@ class FeaturedPlaylistsView(APIView):
         limit = int(self.request.query_params.get('limit', 20))
         qs = qs[:limit]
 
-        return Response(PlaylistSerializer(qs, many=True).data)
+        return SuccessResponse(
+            data=PlaylistSerializer(qs, many=True).data,
+            message='Playlists retrieved successfully'
+        )
 
 
 class DuplicatePlaylistView(APIView):
@@ -298,17 +309,11 @@ class DuplicatePlaylistView(APIView):
         try:
             source = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization check - can only duplicate own playlists or public playlists
         if source.owner_id != request.user.id and source.visibility != 'public':
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized to duplicate this playlist'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized to duplicate this playlist')
 
         # Get request body for optional parameters
         data = request.data
@@ -342,9 +347,10 @@ class DuplicatePlaylistView(APIView):
             if new_tracks:
                 Track.objects.bulk_create(new_tracks)
 
-        return Response(
-            PlaylistSerializer(new_playlist).data,
-            status=status.HTTP_201_CREATED
+        return SuccessResponse(
+            data=PlaylistSerializer(new_playlist).data,
+            message='Playlist duplicated successfully',
+            status_code=201
         )
 
 
@@ -361,16 +367,16 @@ class BatchDeleteView(APIView):
         playlist_ids = request.data.get('playlist_ids', [])
 
         if not playlist_ids:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'This field is required'},
+                message='playlist_ids is required'
+            )
 
         if not isinstance(playlist_ids, list):
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids must be a list'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'Must be a list'},
+                message='playlist_ids must be a list'
+            )
 
         # Delete only user's own playlists
         deleted, not_found, not_authorized = 0, 0, 0
@@ -386,11 +392,16 @@ class BatchDeleteView(APIView):
             except Playlist.DoesNotExist:
                 not_found += 1
 
-        return Response({
-            'deleted': deleted,
-            'not_found': not_found,
-            'not_authorized': not_authorized
-        }, status=status.HTTP_200_OK if deleted > 0 else status.HTTP_202_ACCEPTED)
+        status_code = status.HTTP_200_OK if deleted > 0 else status.HTTP_202_ACCEPTED
+        return SuccessResponse(
+            data={
+                'deleted': deleted,
+                'not_found': not_found,
+                'not_authorized': not_authorized
+            },
+            message=f'Batch delete completed: {deleted} deleted',
+            status_code=status_code
+        )
 
 
 class BatchUpdateView(APIView):
@@ -407,22 +418,22 @@ class BatchUpdateView(APIView):
         updates = request.data.get('updates', {})
 
         if not playlist_ids:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'This field is required'},
+                message='playlist_ids is required'
+            )
 
         if not updates:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'updates field is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'updates': 'This field is required'},
+                message='updates field is required'
+            )
 
         if not isinstance(playlist_ids, list):
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids must be a list'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'Must be a list'},
+                message='playlist_ids must be a list'
+            )
 
         # Update only user's own playlists
         updated, not_found, not_authorized = 0, 0, 0
@@ -442,11 +453,16 @@ class BatchUpdateView(APIView):
             except Playlist.DoesNotExist:
                 not_found += 1
 
-        return Response({
-            'updated': updated,
-            'not_found': not_found,
-            'not_authorized': not_authorized
-        }, status=status.HTTP_200_OK if updated > 0 else status.HTTP_202_ACCEPTED)
+        status_code = status.HTTP_200_OK if updated > 0 else status.HTTP_202_ACCEPTED
+        return SuccessResponse(
+            data={
+                'updated': updated,
+                'not_found': not_found,
+                'not_authorized': not_authorized
+            },
+            message=f'Batch update completed: {updated} updated',
+            status_code=status_code
+        )
 
 
 class CoverUploadView(APIView):
@@ -463,39 +479,36 @@ class CoverUploadView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized to modify this playlist'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized to modify this playlist')
 
         # For now, we accept cover_url in the request body
         # Future enhancement: Handle multipart file upload
         cover_url = request.data.get('cover_url')
 
         if not cover_url:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'cover_url is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'cover_url': 'This field is required'},
+                message='cover_url is required'
+            )
 
         # Validate URL format
         if not cover_url.startswith(('http://', 'https://')):
-            return Response({
-                'error': 'invalid_input',
-                'message': 'cover_url must be a valid HTTP(S) URL'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'cover_url': 'Must be a valid HTTP(S) URL'},
+                message='Invalid cover URL format'
+            )
 
         # Update cover URL
         playlist.cover_url = cover_url
         playlist.save()
 
-        return Response(PlaylistSerializer(playlist).data, status=status.HTTP_200_OK)
+        return SuccessResponse(
+            data=PlaylistSerializer(playlist).data,
+            message='Cover image updated successfully'
+        )
 
 
 class CoverDeleteView(APIView):
@@ -511,22 +524,19 @@ class CoverDeleteView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized to modify this playlist'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized to modify this playlist')
 
         # Clear cover URL
         playlist.cover_url = ''
         playlist.save()
 
-        return Response(PlaylistSerializer(playlist).data, status=status.HTTP_200_OK)
+        return SuccessResponse(
+            data=PlaylistSerializer(playlist).data,
+            message='Cover image updated successfully'
+        )
 
 
 @api_view(['GET'])
@@ -536,19 +546,13 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return Response(
-            {'status': 'healthy', 'service': 'playlist', 'database': 'connected'},
-            status=200,
+        return SuccessResponse(
+            data={'status': 'healthy', 'service': 'playlist', 'database': 'connected'},
+            message='Service is healthy'
         )
     except Exception as e:
-        return Response(
-            {
-                'status': 'unhealthy',
-                'service': 'playlist',
-                'database': 'disconnected',
-                'error': str(e),
-            },
-            status=503,
+        return ServiceUnavailableResponse(
+            message=f'Database connection failed: {str(e)}'
         )
 
 
@@ -629,13 +633,16 @@ class UserPlaylistsView(APIView):
         total = qs.count()
         playlists = qs[offset:offset + limit]
 
-        return Response({
-            'user_id': user_id,
-            'total': total,
-            'limit': limit,
-            'offset': offset,
-            'playlists': PlaylistSerializer(playlists, many=True).data
-        })
+        return SuccessResponse(
+            data={
+                'user_id': user_id,
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'playlists': PlaylistSerializer(playlists, many=True).data
+            },
+            message=f'Retrieved {len(playlists)} playlists'
+        )
 
 
 class PlaylistFollowView(APIView):
@@ -649,24 +656,21 @@ class PlaylistFollowView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Cannot follow own playlists
         if playlist.owner_id == request.user.id:
-            return Response({
-                'error': 'invalid_operation',
-                'message': 'Cannot follow your own playlist'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'operation': 'Cannot follow your own playlist'},
+                message='Cannot follow your own playlist'
+            )
 
         # Can only follow public playlists
         if playlist.visibility != 'public':
-            return Response({
-                'error': 'invalid_operation',
-                'message': 'Can only follow public playlists'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'operation': 'Can only follow public playlists'},
+                message='Can only follow public playlists'
+            )
 
         # Create follow relationship (idempotent)
         follow, created = UserPlaylistFollow.objects.get_or_create(
@@ -675,23 +679,22 @@ class PlaylistFollowView(APIView):
         )
 
         if not created:
-            return Response({
-                'message': 'Already following this playlist'
-            }, status=status.HTTP_200_OK)
+            return SuccessResponse(
+                data={'followed_at': follow.followed_at},
+                message='Already following this playlist'
+            )
 
-        return Response({
-            'message': 'Playlist followed successfully',
-            'followed_at': follow.followed_at
-        }, status=status.HTTP_201_CREATED)
+        return SuccessResponse(
+            data={'followed_at': follow.followed_at},
+            message='Playlist followed successfully',
+            status_code=201
+        )
 
     def delete(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Delete follow relationship
         deleted_count, _ = UserPlaylistFollow.objects.filter(
@@ -700,13 +703,13 @@ class PlaylistFollowView(APIView):
         ).delete()
 
         if deleted_count == 0:
-            return Response({
-                'message': 'Not following this playlist'
-            }, status=status.HTTP_200_OK)
+            return SuccessResponse(
+                message='Not following this playlist'
+            )
 
-        return Response({
-            'message': 'Playlist unfollowed successfully'
-        }, status=status.HTTP_200_OK)
+        return SuccessResponse(
+            message='Playlist unfollowed successfully'
+        )
 
 
 class PlaylistLikeView(APIView):
@@ -720,24 +723,21 @@ class PlaylistLikeView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Cannot like own playlists
         if playlist.owner_id == request.user.id:
-            return Response({
-                'error': 'invalid_operation',
-                'message': 'Cannot like your own playlist'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'operation': 'Cannot like your own playlist'},
+                message='Cannot like your own playlist'
+            )
 
         # Can only like public playlists
         if playlist.visibility != 'public':
-            return Response({
-                'error': 'invalid_operation',
-                'message': 'Can only like public playlists'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'operation': 'Can only like public playlists'},
+                message='Can only like public playlists'
+            )
 
         # Create like relationship (idempotent)
         like, created = UserPlaylistLike.objects.get_or_create(
@@ -746,23 +746,22 @@ class PlaylistLikeView(APIView):
         )
 
         if not created:
-            return Response({
-                'message': 'Already liked this playlist'
-            }, status=status.HTTP_200_OK)
+            return SuccessResponse(
+                data={'liked_at': like.liked_at},
+                message='Already liked this playlist'
+            )
 
-        return Response({
-            'message': 'Playlist liked successfully',
-            'liked_at': like.liked_at
-        }, status=status.HTTP_201_CREATED)
+        return SuccessResponse(
+            data={'liked_at': like.liked_at},
+            message='Playlist liked successfully',
+            status_code=201
+        )
 
     def delete(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Delete like relationship
         deleted_count, _ = UserPlaylistLike.objects.filter(
@@ -771,13 +770,13 @@ class PlaylistLikeView(APIView):
         ).delete()
 
         if deleted_count == 0:
-            return Response({
-                'message': 'Not liking this playlist'
-            }, status=status.HTTP_200_OK)
+            return SuccessResponse(
+                message='Not liking this playlist'
+            )
 
-        return Response({
-            'message': 'Playlist unliked successfully'
-        }, status=status.HTTP_200_OK)
+        return SuccessResponse(
+            message='Playlist unliked successfully'
+        )
 
 
 class RecommendedPlaylistsView(APIView):
@@ -810,10 +809,13 @@ class RecommendedPlaylistsView(APIView):
 
         if not preferred_playlist_ids:
             # No preferences, return featured playlists
-            return Response({
-                'recommendation_type': 'featured',
-                'playlists': FeaturedPlaylistsView.as_view()(request._request).data
-            })
+            return SuccessResponse(
+                data={
+                    'recommendation_type': 'featured',
+                    'playlists': FeaturedPlaylistsView.as_view()(request._request).data
+                },
+                message='Featured playlists returned'
+            )
 
         # Get genres from user's preferred playlists
         from trackapp.models import Track
@@ -828,10 +830,13 @@ class RecommendedPlaylistsView(APIView):
 
         if not preferred_genres:
             # No genres found, return featured playlists
-            return Response({
-                'recommendation_type': 'featured',
-                'playlists': FeaturedPlaylistsView.as_view()(request._request).data
-            })
+            return SuccessResponse(
+                data={
+                    'recommendation_type': 'featured',
+                    'playlists': FeaturedPlaylistsView.as_view()(request._request).data
+                },
+                message='Featured playlists returned'
+            )
 
         # Find playlists with similar genres (excluding user's own)
 
@@ -878,12 +883,15 @@ class RecommendedPlaylistsView(APIView):
             if pid in playlist_dict:
                 ordered_playlists.append(playlist_dict[pid])
 
-        return Response({
-            'recommendation_type': 'genre_based',
-            'preferred_genres': preferred_genres,
-            'total': len(ordered_playlists),
-            'playlists': PlaylistSerializer(ordered_playlists, many=True).data
-        })
+        return SuccessResponse(
+            data={
+                'recommendation_type': 'genre_based',
+                'preferred_genres': preferred_genres,
+                'total': len(ordered_playlists),
+                'playlists': PlaylistSerializer(ordered_playlists, many=True).data
+            },
+            message=f'Genre-based recommendations: {len(ordered_playlists)} playlists'
+        )
 
 
 class SimilarPlaylistsView(APIView):
@@ -901,10 +909,7 @@ class SimilarPlaylistsView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         limit = int(request.query_params.get('limit', 10))
 
@@ -920,10 +925,10 @@ class SimilarPlaylistsView(APIView):
         )
 
         if not playlist_genres:
-            return Response({
-                'message': 'No genres found in this playlist',
-                'similar_playlists': []
-            })
+            return SuccessResponse(
+                data={'similar_playlists': []},
+                message='No genres found in this playlist'
+            )
 
         # Find playlists with similar genres
         similar_candidates = Track.objects.filter(
@@ -933,23 +938,29 @@ class SimilarPlaylistsView(APIView):
         ).values('playlist_id', 'song__genre')
 
         # Calculate Jaccard similarity (intersection / union)
-        playlist_similarities = {}
+        # OPTIMIZATION: Fetch all candidate genres in one query to avoid N+1
         playlist_a_genres = set(playlist_genres)
 
-        for candidate in similar_candidates:
-            pid = candidate['playlist_id']
+        # Get all playlist-genre pairs in a single query
+        candidate_playlist_ids = [c['playlist_id'] for c in similar_candidates]
+        all_candidate_genres = Track.objects.filter(
+            playlist_id__in=candidate_playlist_ids
+        ).exclude(
+            song__genre=''
+        ).values_list('playlist_id', 'song__genre')
 
-            if pid not in playlist_similarities:
-                # Get all genres for this candidate playlist
-                candidate_genres = set(
-                    Track.objects.filter(
-                        playlist_id=pid
-                    ).exclude(
-                        song__genre=''
-                    ).values_list('song__genre', flat=True).distinct()
-                )
+        # Build playlist->genres mapping
+        playlist_genres_map = {}
+        for pid, genre in all_candidate_genres:
+            if pid not in playlist_genres_map:
+                playlist_genres_map[pid] = set()
+            playlist_genres_map[pid].add(genre)
 
-                # Calculate Jaccard similarity
+        # Calculate Jaccard similarity using pre-fetched genres
+        playlist_similarities = {}
+        for pid in candidate_playlist_ids:
+            if pid in playlist_genres_map:
+                candidate_genres = playlist_genres_map[pid]
                 intersection = len(playlist_a_genres & candidate_genres)
                 union = len(playlist_a_genres | candidate_genres)
 
@@ -981,13 +992,16 @@ class SimilarPlaylistsView(APIView):
             if pid in playlist_dict:
                 ordered_playlists.append(playlist_dict[pid])
 
-        return Response({
-            'playlist_id': playlist_id,
-            'playlist_name': playlist.name,
-            'playlist_genres': playlist_genres,
-            'total': len(ordered_playlists),
-            'similar_playlists': PlaylistSerializer(ordered_playlists, many=True).data
-        })
+        return SuccessResponse(
+            data={
+                'playlist_id': playlist_id,
+                'playlist_name': playlist.name,
+                'playlist_genres': playlist_genres,
+                'total': len(ordered_playlists),
+                'similar_playlists': PlaylistSerializer(ordered_playlists, many=True).data
+            },
+            message=f'Found {len(ordered_playlists)} similar playlists'
+        )
 
 
 class AutoGeneratedPlaylistsView(APIView):
@@ -1009,12 +1023,15 @@ class AutoGeneratedPlaylistsView(APIView):
 
     def get(self, request):
         """Get auto-generated playlist suggestions"""
-        # Get user's favorite genres from their liked playlists
+        # OPTIMIZATION: Fetch liked playlist IDs once and reuse
+        liked_playlist_ids = UserPlaylistLike.objects.filter(
+            user_id=request.user.id
+        ).values_list('playlist_id', flat=True)
+
+        # Get user's favorite genres from their liked playlists in a single query
         liked_genres = list(
             Track.objects.filter(
-                playlist_id__in=UserPlaylistLike.objects.filter(
-                    user_id=request.user.id
-                ).values_list('playlist_id', flat=True)
+                playlist_id__in=liked_playlist_ids
             ).exclude(
                 song__genre=''
             ).values_list('song__genre', flat=True)
@@ -1059,9 +1076,10 @@ class AutoGeneratedPlaylistsView(APIView):
             {'type': 'mood_based', 'name': 'Focus Flow', 'description': 'Concentration-boosting tracks', 'mood': 'focus'},
         ]
 
-        return Response({
-            'suggestions': suggestions + mood_suggestions
-        })
+        return SuccessResponse(
+            data={'suggestions': suggestions + mood_suggestions},
+            message='Auto-generated playlist suggestions retrieved'
+        )
 
     def post(self, request):
         """Create an auto-generated playlist"""
@@ -1071,10 +1089,10 @@ class AutoGeneratedPlaylistsView(APIView):
         track_limit = int(request.data.get('track_limit', 50))
 
         if not genre and not mood:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'Either genre or mood must be specified'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'genre_or_mood': 'Either genre or mood must be specified'},
+                message='Either genre or mood must be specified'
+            )
 
         # Determine playlist name if not provided
         if not name:
@@ -1105,10 +1123,7 @@ class AutoGeneratedPlaylistsView(APIView):
             ).order_by('-added_at')[:track_limit]
 
         if not tracks:
-            return Response({
-                'error': 'no_tracks',
-                'message': 'No tracks found for the specified criteria'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='No tracks found for the specified criteria')
 
         # Create the playlist
         playlist = Playlist.objects.create(
@@ -1132,9 +1147,10 @@ class AutoGeneratedPlaylistsView(APIView):
 
         Track.objects.bulk_create(new_tracks)
 
-        return Response(
-            PlaylistSerializer(playlist).data,
-            status=status.HTTP_201_CREATED
+        return SuccessResponse(
+            data=PlaylistSerializer(playlist).data,
+            message='Auto-generated playlist created successfully',
+            status_code=201
         )
 
 
@@ -1154,16 +1170,16 @@ class EnhancedBatchDeleteView(APIView):
         playlist_ids = request.data.get('playlist_ids', [])
 
         if not playlist_ids:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'This field is required'},
+                message='playlist_ids is required'
+            )
 
         if not isinstance(playlist_ids, list):
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist_ids must be a list'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist_ids': 'Must be a list'},
+                message='playlist_ids must be a list'
+            )
 
         create_snapshots = request.data.get('create_snapshots', False)
 
@@ -1214,12 +1230,15 @@ class EnhancedBatchDeleteView(APIView):
                 })
                 failed_count += 1
 
-        return Response({
-            'total': len(playlist_ids),
-            'deleted': deleted_count,
-            'failed': failed_count,
-            'results': results
-        }, status=status.HTTP_200_OK)
+        return SuccessResponse(
+            data={
+                'total': len(playlist_ids),
+                'deleted': deleted_count,
+                'failed': failed_count,
+                'results': results
+            },
+            message=f'Snapshot batch delete completed: {deleted_count} deleted'
+        )
 
 
 class PlaylistExportView(APIView):
@@ -1237,17 +1256,11 @@ class PlaylistExportView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization check
         if playlist.owner_id != request.user.id and playlist.visibility != 'public':
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized to export this playlist'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized to export this playlist')
 
         # Get all tracks with song details
         tracks = Track.objects.filter(
@@ -1302,7 +1315,10 @@ class PlaylistExportView(APIView):
             }
             export_data['tracks'].append(track_data)
 
-        return Response(export_data)
+        return SuccessResponse(
+            data=export_data,
+            message='Playlist exported successfully'
+        )
 
 
 class PlaylistImportView(APIView):
@@ -1321,10 +1337,10 @@ class PlaylistImportView(APIView):
         import_data = request.data.get('playlist')
 
         if not import_data:
-            return Response({
-                'error': 'invalid_input',
-                'message': 'playlist data is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ValidationErrorResponse(
+                errors={'playlist': 'This field is required'},
+                message='playlist data is required'
+            )
 
         try:
             # Extract playlist data
@@ -1407,16 +1423,17 @@ class PlaylistImportView(APIView):
                     playlist.max_songs = len(imported_tracks)
                     playlist.save()
 
-            return Response(
-                PlaylistSerializer(playlist).data,
-                status=status.HTTP_201_CREATED
+            return SuccessResponse(
+                data=PlaylistSerializer(playlist).data,
+                message='Playlist imported successfully',
+                status_code=201
             )
 
         except Exception as e:
-            return Response({
-                'error': 'import_failed',
-                'message': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return ErrorResponse(
+                error='import_failed',
+                message=str(e)
+            )
 
 
 class PlaylistSnapshotView(APIView):
@@ -1439,43 +1456,34 @@ class PlaylistSnapshotView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
 
         limit = int(request.query_params.get('limit', 20))
 
         snapshots = playlist.snapshots.all()[:limit]
 
-        return Response({
-            'playlist_id': playlist_id,
-            'total': snapshots.count(),
-            'snapshots': PlaylistSnapshotSerializer(snapshots, many=True).data
-        })
+        return SuccessResponse(
+            data={
+                'playlist_id': playlist_id,
+                'total': snapshots.count(),
+                'snapshots': PlaylistSnapshotSerializer(snapshots, many=True).data
+            },
+            message=f'Retrieved {snapshots.count()} snapshots'
+        )
 
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
 
         change_reason = request.data.get('change_reason', 'Manual snapshot')
 
@@ -1491,9 +1499,10 @@ class PlaylistSnapshotView(APIView):
             track_count=playlist.tracks.count()
         )
 
-        return Response(
-            PlaylistSnapshotSerializer(snapshot).data,
-            status=status.HTTP_201_CREATED
+        return SuccessResponse(
+            data=PlaylistSnapshotSerializer(snapshot).data,
+            message='Snapshot created successfully',
+            status_code=201
         )
 
     def delete(self, request, playlist_id):
@@ -1501,17 +1510,11 @@ class PlaylistSnapshotView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
 
         keep = int(request.data.get('keep', 10))
 
@@ -1519,10 +1522,10 @@ class PlaylistSnapshotView(APIView):
         all_snapshots = list(playlist.snapshots.all())
 
         if len(all_snapshots) <= keep:
-            return Response({
-                'message': 'No snapshots to delete',
-                'total_snapshots': len(all_snapshots)
-            })
+            return SuccessResponse(
+                data={'total_snapshots': len(all_snapshots)},
+                message='No snapshots to delete'
+            )
 
         # Delete older snapshots
         to_delete = all_snapshots[keep:]
@@ -1532,11 +1535,10 @@ class PlaylistSnapshotView(APIView):
             snapshot.delete()
             deleted_count += 1
 
-        return Response({
-            'message': f'Deleted {deleted_count} old snapshots',
-            'kept': keep,
-            'deleted': deleted_count
-        })
+        return SuccessResponse(
+            data={'kept': keep, 'deleted': deleted_count},
+            message=f'Deleted {deleted_count} old snapshots'
+        )
 
 
 class PlaylistRestoreView(APIView):
@@ -1551,25 +1553,16 @@ class PlaylistRestoreView(APIView):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
         except Playlist.DoesNotExist:
-            return Response({
-                'error': 'playlist_not_found',
-                'message': 'Playlist not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Playlist not found')
 
         # Authorization
         if playlist.owner_id != request.user.id:
-            return Response({
-                'error': 'forbidden',
-                'message': 'Not authorized'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return ForbiddenResponse(message='Not authorized')
 
         try:
             snapshot = PlaylistSnapshot.objects.get(id=snapshot_id, playlist=playlist)
         except PlaylistSnapshot.DoesNotExist:
-            return Response({
-                'error': 'snapshot_not_found',
-                'message': 'Snapshot not found for this playlist'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return NotFoundResponse(message='Snapshot not found for this playlist')
 
         # Create snapshot of current state before restoring
         current_snapshot_data = PlaylistSerializer(playlist).data
@@ -1620,7 +1613,358 @@ class PlaylistRestoreView(APIView):
             if restored_tracks:
                 Track.objects.bulk_create(restored_tracks)
 
-        return Response(
-            PlaylistSerializer(playlist).data,
-            status=status.HTTP_200_OK
+        return SuccessResponse(
+            data=PlaylistSerializer(playlist).data,
+            message='Playlist restored successfully from snapshot'
+        )
+
+
+class PlaylistCommentsView(APIView):
+    """
+    GET /api/playlists/{id}/comments/
+
+    List all comments for a playlist (threaded):
+    - Top-level comments only (parent_id is null)
+    - Includes replies_count
+    - Supports pagination
+    - Sorted by most recent first
+
+    POST /api/playlists/{id}/comments/
+
+    Create a new comment on a playlist:
+    - Optional parent_id for replies
+    - Auto-sets user_id from authenticated user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Authorization: can view comments on public playlists or own playlists
+        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            return ForbiddenResponse(message='Not authorized to view comments on this playlist')
+
+        # Get top-level comments only (no parent)
+        comments = PlaylistComment.objects.filter(
+            playlist_id=playlist_id,
+            parent_id__isnull=True,
+            is_deleted=False
+        ).select_related('user').order_by('-created_at')
+
+        # Pagination
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
+
+        total = comments.count()
+        comments_page = comments[offset:offset + limit]
+
+        # Set current user for is_liked check
+        serializer = PlaylistCommentSerializer(
+            comments_page,
+            many=True,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data={
+                'playlist_id': playlist_id,
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'comments': serializer.data
+            },
+            message=f'Retrieved {len(serializer.data)} comments'
+        )
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Authorization: can comment on public playlists or own playlists
+        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            return ForbiddenResponse(message='Not authorized to comment on this playlist')
+
+        content = request.data.get('content')
+        if not content or not content.strip():
+            return ValidationErrorResponse(
+                errors={'content': 'This field is required and cannot be empty'},
+                message='Comment content is required'
+            )
+
+        parent_id = request.data.get('parent_id')
+
+        # Validate parent_id if provided
+        if parent_id:
+            try:
+                parent_comment = PlaylistComment.objects.get(
+                    id=parent_id,
+                    playlist_id=playlist_id,
+                    is_deleted=False
+                )
+                # Don't allow replying to replies (max 2 levels)
+                if parent_comment.parent_id is not None:
+                    return ValidationErrorResponse(
+                        errors={'parent_id': 'Cannot reply to a reply (max 2 levels)'},
+                        message='Cannot reply to a reply'
+                    )
+            except PlaylistComment.DoesNotExist:
+                return NotFoundResponse(message='Parent comment not found')
+
+        # Create comment
+        comment = PlaylistComment.objects.create(
+            playlist_id=playlist_id,
+            user_id=request.user.id,
+            parent_id=parent_id,
+            content=content.strip()
+        )
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment created successfully',
+            status_code=201
+        )
+
+
+class CommentDetailView(APIView):
+    """
+    GET /api/comments/{id}/
+
+    Get a single comment with its replies
+
+    PATCH /api/comments/{id}/
+
+    Update a comment (content only):
+    - Only by comment author
+    - Sets is_edited flag
+
+    DELETE /api/comments/{id}/
+
+    Soft delete a comment:
+    - Only by comment author
+    - Sets is_deleted flag (content remains but marked as deleted)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.select_related('user').get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to view this comment')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment retrieved successfully'
+        )
+
+    def patch(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Only author can edit
+        if comment.user_id != request.user.id:
+            return ForbiddenResponse(message='Not authorized to edit this comment')
+
+        content = request.data.get('content')
+        if not content or not content.strip():
+            return ValidationErrorResponse(
+                errors={'content': 'This field is required and cannot be empty'},
+                message='Comment content is required'
+            )
+
+        # Update comment
+        comment.content = content.strip()
+        comment.is_edited = True
+        comment.save()
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment updated successfully'
+        )
+
+    def delete(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Only author can delete
+        if comment.user_id != request.user.id:
+            return ForbiddenResponse(message='Not authorized to delete this comment')
+
+        # Soft delete
+        comment.is_deleted = True
+        comment.save()
+
+        return SuccessResponse(
+            message='Comment deleted successfully'
+        )
+
+
+class CommentRepliesView(APIView):
+    """
+    GET /api/comments/{id}/replies/
+
+    Get all replies to a comment:
+    - Direct replies only (one level deep)
+    - Sorted by most recent first
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, comment_id):
+        try:
+            parent_comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=parent_comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to view replies')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Get replies
+        replies = PlaylistComment.objects.filter(
+            parent_id=comment_id,
+            is_deleted=False
+        ).select_related('user').order_by('-created_at')
+
+        serializer = PlaylistCommentSerializer(
+            replies,
+            many=True,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data={
+                'comment_id': comment_id,
+                'total': replies.count(),
+                'replies': serializer.data
+            },
+            message=f'Retrieved {replies.count()} replies'
+        )
+
+
+class CommentLikeView(APIView):
+    """
+    POST /api/comments/{id}/like/
+
+    Like a comment:
+    - Idempotent (can like again without error)
+    - Increments likes_count
+
+    DELETE /api/comments/{id}/like/
+
+    Unlike a comment:
+    - Decrements likes_count
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to like comments on this playlist')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Cannot like own comments
+        if comment.user_id == request.user.id:
+            return ValidationErrorResponse(
+                message='Cannot like your own comment'
+            )
+
+        # Create like (idempotent)
+        like, created = PlaylistCommentLike.objects.get_or_create(
+            comment_id=comment_id,
+            user_id=request.user.id
+        )
+
+        if created:
+            # Increment likes count
+            comment.likes_count += 1
+            comment.save()
+
+        serializer = PlaylistCommentLikeSerializer(like)
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment liked successfully' if created else 'Already liked this comment',
+            status_code=201 if created else 200
+        )
+
+    def delete(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Delete like
+        deleted_count, _ = PlaylistCommentLike.objects.filter(
+            comment_id=comment_id,
+            user_id=request.user.id
+        ).delete()
+
+        if deleted_count > 0:
+            # Decrement likes count
+            comment.likes_count = max(0, comment.likes_count - 1)
+            comment.save()
+
+        return SuccessResponse(
+            message='Comment unliked successfully' if deleted_count > 0 else 'Not liking this comment'
         )

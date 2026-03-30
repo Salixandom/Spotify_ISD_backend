@@ -9,16 +9,16 @@ def default_expires_at():
 
 
 class ShareLink(models.Model):
-    playlist_id   = models.IntegerField()
-    token         = models.UUIDField(
-                        default=uuid.uuid4,
-                        unique=True,
-                        editable=False
-                    )
+    playlist_id = models.IntegerField()
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False
+    )
     created_by_id = models.IntegerField()
-    is_active     = models.BooleanField(default=True)
-    created_at    = models.DateTimeField(auto_now_add=True)
-    expires_at    = models.DateTimeField(default=default_expires_at)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=default_expires_at)
 
     class Meta:
         indexes = [

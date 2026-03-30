@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Playlist, PlaylistSnapshot
+from .models import Playlist, PlaylistSnapshot, PlaylistComment, PlaylistCommentLike
 
 
 class PlaylistSnapshotSerializer(serializers.ModelSerializer):
@@ -56,3 +56,61 @@ class PlaylistStatsSerializer(serializers.Serializer):
     is_liked = serializers.BooleanField(read_only=True)
     owner_id = serializers.IntegerField(read_only=True)
     cover_url = serializers.URLField(read_only=True)
+
+
+class PlaylistCommentSerializer(serializers.ModelSerializer):
+    """Serializer for playlist comments with threading support"""
+    username = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    replies_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlaylistComment
+        fields = [
+            'id',
+            'playlist_id',
+            'user_id',
+            'username',
+            'parent_id',
+            'content',
+            'likes_count',
+            'is_edited',
+            'is_deleted',
+            'is_liked',
+            'replies_count',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['user_id', 'likes_count', 'is_edited', 'created_at', 'updated_at']
+
+    def get_username(self, obj):
+        """Get username from Django User model"""
+        try:
+            from django.contrib.auth.models import User
+            user = User.objects.get(id=obj.user_id)
+            return user.username
+        except User.DoesNotExist:
+            return None
+
+    def get_is_liked(self, obj):
+        """Check if current user liked this comment"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return PlaylistCommentLike.objects.filter(
+                comment_id=obj.id,
+                user_id=request.user.id
+            ).exists()
+        return False
+
+    def get_replies_count(self, obj):
+        """Count direct replies to this comment"""
+        return PlaylistComment.objects.filter(parent_id=obj.id, is_deleted=False).count()
+
+
+class PlaylistCommentLikeSerializer(serializers.ModelSerializer):
+    """Serializer for comment likes"""
+
+    class Meta:
+        model = PlaylistCommentLike
+        fields = ['id', 'comment_id', 'user_id', 'created_at']
+        read_only_fields = ['id', 'created_at']
