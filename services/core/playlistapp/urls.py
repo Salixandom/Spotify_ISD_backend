@@ -20,6 +20,10 @@ from .views import (
     PlaylistImportView,
     PlaylistSnapshotView,
     PlaylistRestoreView,
+    PlaylistCommentsView,
+    CommentDetailView,
+    CommentRepliesView,
+    CommentLikeView,
 )
 
 router = DefaultRouter()
@@ -48,5 +52,10 @@ urlpatterns = [
     path("<int:playlist_id>/export/", PlaylistExportView.as_view(), name="playlist-export"),
     path("<int:playlist_id>/snapshots/", PlaylistSnapshotView.as_view(), name="playlist-snapshots"),
     path("<int:playlist_id>/restore/<int:snapshot_id>/", PlaylistRestoreView.as_view(), name="playlist-restore"),
+    # Phase 3: Comments
+    path("<int:playlist_id>/comments/", PlaylistCommentsView.as_view(), name="playlist-comments"),
+    path("comments/<int:comment_id>/", CommentDetailView.as_view(), name="comment-detail"),
+    path("comments/<int:comment_id>/replies/", CommentRepliesView.as_view(), name="comment-replies"),
+    path("comments/<int:comment_id>/like/", CommentLikeView.as_view(), name="comment-like"),
     path("", include(router.urls)),
 ]

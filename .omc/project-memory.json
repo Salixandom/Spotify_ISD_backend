@@ -68,8 +68,8 @@
   "hotPaths": [
     {
       "path": "services/core/playlistapp/views.py",
-      "accessCount": 117,
-      "lastAccessed": 1774827105272,
+      "accessCount": 121,
+      "lastAccessed": 1774829088241,
       "type": "file"
     },
     {
@@ -80,26 +80,38 @@
     },
     {
       "path": "services/collaboration/collabapp/views.py",
-      "accessCount": 17,
-      "lastAccessed": 1774827942703,
+      "accessCount": 18,
+      "lastAccessed": 1774828582924,
       "type": "file"
     },
     {
       "path": "services/core/playlistapp/models.py",
-      "accessCount": 14,
-      "lastAccessed": 1774823007788,
+      "accessCount": 16,
+      "lastAccessed": 1774828952463,
       "type": "file"
     },
     {
       "path": "services/core/searchapp/views.py",
-      "accessCount": 13,
-      "lastAccessed": 1774827355810,
+      "accessCount": 16,
+      "lastAccessed": 1774829290265,
       "type": "file"
     },
     {
       "path": "services/core/playlistapp/urls.py",
+      "accessCount": 15,
+      "lastAccessed": 1774829123329,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/serializers.py",
       "accessCount": 12,
-      "lastAccessed": 1774821944341,
+      "lastAccessed": 1774829097260,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/views.py",
+      "accessCount": 10,
+      "lastAccessed": 1774829540891,
       "type": "file"
     },
     {
@@ -109,15 +121,9 @@
       "type": "file"
     },
     {
-      "path": "services/core/playlistapp/serializers.py",
-      "accessCount": 8,
-      "lastAccessed": 1774823202369,
-      "type": "file"
-    },
-    {
-      "path": "services/core/historyapp/views.py",
-      "accessCount": 7,
-      "lastAccessed": 1774827223353,
+      "path": "services/auth/authapp/views.py",
+      "accessCount": 9,
+      "lastAccessed": 1774828864279,
       "type": "file"
     },
     {
@@ -143,6 +149,24 @@
       "accessCount": 3,
       "lastAccessed": 1774823011237,
       "type": "directory"
+    },
+    {
+      "path": "services/auth/authapp/models.py",
+      "accessCount": 3,
+      "lastAccessed": 1774828833573,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/authapp/serializers.py",
+      "accessCount": 3,
+      "lastAccessed": 1774828843776,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/authapp/urls.py",
+      "accessCount": 3,
+      "lastAccessed": 1774828873038,
+      "type": "file"
     },
     {
       "path": "services/core/pyproject.toml",
@@ -175,27 +199,81 @@
       "type": "file"
     },
     {
-      "path": "docs/SESSION-2026-03-30-phase2.md",
-      "accessCount": 1,
-      "lastAccessed": 1774819892953,
-      "type": "file"
-    },
-    {
       "path": "docs/SESSION-2026-03-30-phase3.md",
-      "accessCount": 1,
-      "lastAccessed": 1774820063116,
+      "accessCount": 2,
+      "lastAccessed": 1774828408948,
       "type": "file"
     },
     {
       "path": "docs/SESSION-2026-03-30-phase4.md",
-      "accessCount": 1,
-      "lastAccessed": 1774820347339,
+      "accessCount": 2,
+      "lastAccessed": 1774828427476,
       "type": "file"
     },
     {
       "path": "docs/SESSION-2026-03-30-phase5.md",
+      "accessCount": 2,
+      "lastAccessed": 1774828432235,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase6.md",
+      "accessCount": 2,
+      "lastAccessed": 1774828436698,
+      "type": "file"
+    },
+    {
+      "path": "services/core/searchapp/models.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829246274,
+      "type": "file"
+    },
+    {
+      "path": "services/core/searchapp/serializers.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829258452,
+      "type": "file"
+    },
+    {
+      "path": "services/core/searchapp/urls.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829303929,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/models.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829458688,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/serializers.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829471679,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/urls.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829551953,
+      "type": "file"
+    },
+    {
+      "path": "services/core/core/settings.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829598771,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/services.py",
+      "accessCount": 2,
+      "lastAccessed": 1774829604036,
+      "type": "file"
+    },
+    {
+      "path": "docs/SESSION-2026-03-30-phase2.md",
       "accessCount": 1,
-      "lastAccessed": 1774820506506,
+      "lastAccessed": 1774819892953,
       "type": "file"
     },
     {
@@ -223,12 +301,6 @@
       "type": "file"
     },
     {
-      "path": "docs/SESSION-2026-03-30-phase6.md",
-      "accessCount": 1,
-      "lastAccessed": 1774820726972,
-      "type": "file"
-    },
-    {
       "path": "services/core",
       "accessCount": 1,
       "lastAccessed": 1774820976251,
@@ -244,6 +316,36 @@
       "path": "docs/TRACK_SORTING_ENHANCEMENT.md",
       "accessCount": 1,
       "lastAccessed": 1774821278622,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1774828377561,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/utils/responses.py",
+      "accessCount": 1,
+      "lastAccessed": 1774828460319,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/middleware.py",
+      "accessCount": 1,
+      "lastAccessed": 1774829485835,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/action_extractors.py",
+      "accessCount": 1,
+      "lastAccessed": 1774829498179,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/handlers.py",
+      "accessCount": 1,
+      "lastAccessed": 1774829509465,
       "type": "file"
     }
   ],

@@ -13,8 +13,8 @@ from utils.responses import (
 )
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
-from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer
+from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot, PlaylistComment, PlaylistCommentLike
+from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer, PlaylistCommentSerializer, PlaylistCommentLikeSerializer
 from trackapp.models import Track
 
 PLAYLIST_SORT_MAP = {
@@ -1608,4 +1608,355 @@ class PlaylistRestoreView(APIView):
         return SuccessResponse(
             data=PlaylistSerializer(playlist).data,
             message='Playlist restored successfully from snapshot'
+        )
+
+
+class PlaylistCommentsView(APIView):
+    """
+    GET /api/playlists/{id}/comments/
+
+    List all comments for a playlist (threaded):
+    - Top-level comments only (parent_id is null)
+    - Includes replies_count
+    - Supports pagination
+    - Sorted by most recent first
+
+    POST /api/playlists/{id}/comments/
+
+    Create a new comment on a playlist:
+    - Optional parent_id for replies
+    - Auto-sets user_id from authenticated user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Authorization: can view comments on public playlists or own playlists
+        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            return ForbiddenResponse(message='Not authorized to view comments on this playlist')
+
+        # Get top-level comments only (no parent)
+        comments = PlaylistComment.objects.filter(
+            playlist_id=playlist_id,
+            parent_id__isnull=True,
+            is_deleted=False
+        ).select_related('user').order_by('-created_at')
+
+        # Pagination
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
+
+        total = comments.count()
+        comments_page = comments[offset:offset + limit]
+
+        # Set current user for is_liked check
+        serializer = PlaylistCommentSerializer(
+            comments_page,
+            many=True,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data={
+                'playlist_id': playlist_id,
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'comments': serializer.data
+            },
+            message=f'Retrieved {len(serializer.data)} comments'
+        )
+
+    def post(self, request, playlist_id):
+        try:
+            playlist = Playlist.objects.get(id=playlist_id)
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Authorization: can comment on public playlists or own playlists
+        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            return ForbiddenResponse(message='Not authorized to comment on this playlist')
+
+        content = request.data.get('content')
+        if not content or not content.strip():
+            return ValidationErrorResponse(
+                errors={'content': 'This field is required and cannot be empty'},
+                message='Comment content is required'
+            )
+
+        parent_id = request.data.get('parent_id')
+
+        # Validate parent_id if provided
+        if parent_id:
+            try:
+                parent_comment = PlaylistComment.objects.get(
+                    id=parent_id,
+                    playlist_id=playlist_id,
+                    is_deleted=False
+                )
+                # Don't allow replying to replies (max 2 levels)
+                if parent_comment.parent_id is not None:
+                    return ValidationErrorResponse(
+                        errors={'parent_id': 'Cannot reply to a reply (max 2 levels)'},
+                        message='Cannot reply to a reply'
+                    )
+            except PlaylistComment.DoesNotExist:
+                return NotFoundResponse(message='Parent comment not found')
+
+        # Create comment
+        comment = PlaylistComment.objects.create(
+            playlist_id=playlist_id,
+            user_id=request.user.id,
+            parent_id=parent_id,
+            content=content.strip()
+        )
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment created successfully',
+            status_code=201
+        )
+
+
+class CommentDetailView(APIView):
+    """
+    GET /api/comments/{id}/
+
+    Get a single comment with its replies
+
+    PATCH /api/comments/{id}/
+
+    Update a comment (content only):
+    - Only by comment author
+    - Sets is_edited flag
+
+    DELETE /api/comments/{id}/
+
+    Soft delete a comment:
+    - Only by comment author
+    - Sets is_deleted flag (content remains but marked as deleted)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.select_related('user').get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to view this comment')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment retrieved successfully'
+        )
+
+    def patch(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Only author can edit
+        if comment.user_id != request.user.id:
+            return ForbiddenResponse(message='Not authorized to edit this comment')
+
+        content = request.data.get('content')
+        if not content or not content.strip():
+            return ValidationErrorResponse(
+                errors={'content': 'This field is required and cannot be empty'},
+                message='Comment content is required'
+            )
+
+        # Update comment
+        comment.content = content.strip()
+        comment.is_edited = True
+        comment.save()
+
+        serializer = PlaylistCommentSerializer(
+            comment,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment updated successfully'
+        )
+
+    def delete(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Only author can delete
+        if comment.user_id != request.user.id:
+            return ForbiddenResponse(message='Not authorized to delete this comment')
+
+        # Soft delete
+        comment.is_deleted = True
+        comment.save()
+
+        return SuccessResponse(
+            message='Comment deleted successfully'
+        )
+
+
+class CommentRepliesView(APIView):
+    """
+    GET /api/comments/{id}/replies/
+
+    Get all replies to a comment:
+    - Direct replies only (one level deep)
+    - Sorted by most recent first
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, comment_id):
+        try:
+            parent_comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=parent_comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to view replies')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Get replies
+        replies = PlaylistComment.objects.filter(
+            parent_id=comment_id,
+            is_deleted=False
+        ).select_related('user').order_by('-created_at')
+
+        serializer = PlaylistCommentSerializer(
+            replies,
+            many=True,
+            context={'request': request}
+        )
+
+        return SuccessResponse(
+            data={
+                'comment_id': comment_id,
+                'total': replies.count(),
+                'replies': serializer.data
+            },
+            message=f'Retrieved {replies.count()} replies'
+        )
+
+
+class CommentLikeView(APIView):
+    """
+    POST /api/comments/{id}/like/
+
+    Like a comment:
+    - Idempotent (can like again without error)
+    - Increments likes_count
+
+    DELETE /api/comments/{id}/like/
+
+    Unlike a comment:
+    - Decrements likes_count
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Check playlist access
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+                return ForbiddenResponse(message='Not authorized to like comments on this playlist')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
+
+        # Cannot like own comments
+        if comment.user_id == request.user.id:
+            return ValidationErrorResponse(
+                message='Cannot like your own comment'
+            )
+
+        # Create like (idempotent)
+        like, created = PlaylistCommentLike.objects.get_or_create(
+            comment_id=comment_id,
+            user_id=request.user.id
+        )
+
+        if created:
+            # Increment likes count
+            comment.likes_count += 1
+            comment.save()
+
+        serializer = PlaylistCommentLikeSerializer(like)
+
+        return SuccessResponse(
+            data=serializer.data,
+            message='Comment liked successfully' if created else 'Already liked this comment',
+            status_code=201 if created else 200
+        )
+
+    def delete(self, request, comment_id):
+        try:
+            comment = PlaylistComment.objects.get(
+                id=comment_id,
+                is_deleted=False
+            )
+        except PlaylistComment.DoesNotExist:
+            return NotFoundResponse(message='Comment not found')
+
+        # Delete like
+        deleted_count, _ = PlaylistCommentLike.objects.filter(
+            comment_id=comment_id,
+            user_id=request.user.id
+        ).delete()
+
+        if deleted_count > 0:
+            # Decrement likes count
+            comment.likes_count = max(0, comment.likes_count - 1)
+            comment.save()
+
+        return SuccessResponse(
+            message='Comment unliked successfully' if deleted_count > 0 else 'Not liking this comment'
         )
