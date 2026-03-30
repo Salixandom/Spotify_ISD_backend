@@ -4,7 +4,6 @@ Pytest configuration and shared fixtures.
 import pytest
 import django
 from django.conf import settings
-from django.test.utils import get_runner
 
 # Configure Django settings for tests
 if not settings.configured:

@@ -4,7 +4,7 @@ Integration tests for Search API endpoints.
 import pytest
 from django.urls import reverse
 from rest_framework import status
-from searchapp.models import Song, Artist, Album, Genre
+from searchapp.models import Genre
 
 
 @pytest.mark.django_db

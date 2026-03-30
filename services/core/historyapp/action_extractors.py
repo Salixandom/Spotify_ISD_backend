@@ -3,7 +3,6 @@ Extract action details from requests.
 Each extractor knows how to capture before/after state for specific endpoints.
 """
 import json
-from rest_framework.request import Request
 
 
 class ActionExtractor:

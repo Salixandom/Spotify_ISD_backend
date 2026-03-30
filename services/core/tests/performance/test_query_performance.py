@@ -3,7 +3,6 @@ Performance tests for critical query paths.
 Verifies that query optimizations (select_related, prefetch_related) are working.
 """
 import pytest
-from django.test import override_settings
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse

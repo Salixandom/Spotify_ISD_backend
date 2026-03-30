@@ -11,7 +11,6 @@ from utils.responses import (
     ServiceUnavailableResponse,
     NotFoundResponse,
     ForbiddenResponse,
-    ConflictResponse,
 )
 
 
@@ -192,7 +191,7 @@ class FollowUserView(APIView):
 
     def post(self, request, user_id):
         """Follow a user"""
-        from .models import UserFollow, UserProfile
+        from .models import UserFollow
 
         # Can't follow yourself
         if user_id == request.user.id:

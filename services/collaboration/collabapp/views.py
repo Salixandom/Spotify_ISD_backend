@@ -1,10 +1,8 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions, status
+from rest_framework import permissions
 
 from utils.responses import (
     SuccessResponse,
-    ErrorResponse,
     NotFoundResponse,
     ForbiddenResponse,
     ValidationErrorResponse,
@@ -172,5 +170,3 @@ class MyRoleView(APIView):
             data={'role': 'collaborator'},
             message='User is a collaborator'
         )
-
-

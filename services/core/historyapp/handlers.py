@@ -121,7 +121,6 @@ class TrackAddUndoHandler(UndoHandler):
         try:
             track = Track.objects.get(id=track_id)
             playlist_id = track.playlist_id
-            song_id = track.song_id
 
             track.delete()
 

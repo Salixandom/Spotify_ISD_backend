@@ -1,14 +1,10 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions, status
+from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
 
 from utils.responses import (
     SuccessResponse,
-    ErrorResponse,
     NotFoundResponse,
-    ForbiddenResponse,
-    ValidationErrorResponse,
     ServiceUnavailableResponse,
 )
 from django.db.models import Q
@@ -148,7 +144,7 @@ class SongSearchView(APIView):
     def get(self, request):
         query = request.query_params.get('q', '')
         genre = request.query_params.get('genre', '')
-        sort  = request.query_params.get('sort', '')
+        sort = request.query_params.get('sort', '')
         order = request.query_params.get('order', 'asc')
 
         qs = Song.objects.select_related('artist', 'album')
@@ -179,7 +175,7 @@ class PlaylistSearchView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        query        = request.query_params.get('q', '')
+        query = request.query_params.get('q', '')
         playlist_type = request.query_params.get('type', '')
 
         qs = Playlist.objects.filter(visibility='public')
@@ -256,7 +252,6 @@ class GenreDetailView(APIView):
             genre_data = GenreSerializer(genre).data
         except Genre.DoesNotExist:
             # Fallback: create genre data from Song model
-            from django.db.models import Count
             song_count = Song.objects.filter(genre__iexact=genre_name).count()
             genre_data = {
                 'name': genre_name,
@@ -523,7 +518,6 @@ class RecommendationsView(APIView):
 
         # Count genre occurrences for weighting
         # OPTIMIZATION: Use aggregation to count genres in database instead of Python Counter
-        from collections import Counter
         from django.db.models import Count
 
         genre_weights_data = Track.objects.filter(

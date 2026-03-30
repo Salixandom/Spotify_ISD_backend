@@ -44,7 +44,6 @@ class IsPlaylistOwnerOrCollaborator(permissions.BasePermission):
 
         # Check if collaborator
         try:
-            auth_token = request.headers.get('Authorization', '')
             is_collab = CollaborationServiceClient.is_collaborator(playlist_id, request.user.id)
             return is_collab
         except Exception:
@@ -59,7 +58,6 @@ class IsPlaylistOwnerOrCollaborator(permissions.BasePermission):
         # Check collaboration for object
         if hasattr(obj, 'playlist_id'):
             try:
-                auth_token = request.headers.get('Authorization', '')
                 from utils.service_clients import CollaborationServiceClient
                 return CollaborationServiceClient.is_collaborator(obj.playlist_id, request.user.id)
             except Exception:
@@ -83,7 +81,6 @@ class IsOwnerOrCollaborator(permissions.BasePermission):
         if hasattr(obj, 'playlist_id'):
             try:
                 from utils.service_clients import CollaborationServiceClient
-                auth_token = request.headers.get('Authorization', '')
                 return CollaborationServiceClient.is_collaborator(obj.playlist_id, request.user.id)
             except Exception:
                 pass

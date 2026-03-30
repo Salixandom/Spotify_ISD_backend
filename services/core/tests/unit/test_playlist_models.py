@@ -2,8 +2,6 @@
 Unit tests for Playlist models.
 """
 import pytest
-from datetime import datetime, timedelta
-from django.core.exceptions import ValidationError
 from playlistapp.models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
 
 
@@ -61,7 +59,7 @@ class TestPlaylistModel:
         # Update playlist1 to make it newer
         playlist1.save()
 
-        playlist2 = Playlist.objects.create(
+        Playlist.objects.create(
             owner_id=1,
             name='Playlist 2'
         )

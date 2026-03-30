@@ -3,8 +3,6 @@ Unit tests for Track models.
 """
 import pytest
 from trackapp.models import Track, UserTrackHide
-from playlistapp.models import Playlist
-from searchapp.models import Song, Artist, Album
 
 
 @pytest.mark.django_db
@@ -67,7 +65,7 @@ class TestTrackModel:
 
     def test_track_ordering(self, test_playlist, test_song):
         """Test tracks are ordered by position by default."""
-        track1 = Track.objects.create(
+        Track.objects.create(
             playlist=test_playlist,
             song=test_song,
             added_by_id=1,
@@ -84,7 +82,7 @@ class TestTrackModel:
             album=album2
         )
 
-        track2 = Track.objects.create(
+        Track.objects.create(
             playlist=test_playlist,
             song=song2,
             added_by_id=1,

@@ -26,11 +26,11 @@ class Genre(models.Model):
 
 
 class Artist(models.Model):
-    name              = models.CharField(max_length=255, unique=True)
-    image_url         = models.URLField(max_length=500, blank=True, default='')
-    bio               = models.TextField(default='')
+    name = models.CharField(max_length=255, unique=True)
+    image_url = models.URLField(max_length=500, blank=True, default='')
+    bio = models.TextField(default='')
     monthly_listeners = models.IntegerField(default=0)
-    created_at        = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [models.Index(fields=['name'])]
@@ -40,15 +40,15 @@ class Artist(models.Model):
 
 
 class Album(models.Model):
-    artist       = models.ForeignKey(
-                       Artist,
-                       on_delete=models.CASCADE,
-                       related_name='albums'
-                   )
-    name         = models.CharField(max_length=255)
-    cover_url    = models.URLField(max_length=500, blank=True, default='')
+    artist = models.ForeignKey(
+        Artist,
+        on_delete=models.CASCADE,
+        related_name='albums'
+    )
+    name = models.CharField(max_length=255)
+    cover_url = models.URLField(max_length=500, blank=True, default='')
     release_year = models.IntegerField(null=True, blank=True)
-    created_at   = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('artist', 'name')
@@ -62,32 +62,32 @@ class Album(models.Model):
 
 
 class Song(models.Model):
-    artist           = models.ForeignKey(
-                           Artist,
-                           on_delete=models.CASCADE,
-                           related_name='songs'
-                       )
-    album            = models.ForeignKey(
-                           Album,
-                           on_delete=models.SET_NULL,
-                           null=True,
-                           blank=True,
-                           related_name='songs'
-                       )
-    title            = models.CharField(max_length=255)
-    genre            = models.CharField(max_length=100, default='')
-    release_year     = models.IntegerField(null=True, blank=True)
+    artist = models.ForeignKey(
+        Artist,
+        on_delete=models.CASCADE,
+        related_name='songs'
+    )
+    album = models.ForeignKey(
+        Album,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='songs'
+    )
+    title = models.CharField(max_length=255)
+    genre = models.CharField(max_length=100, default='')
+    release_year = models.IntegerField(null=True, blank=True)
 
     # New fields for music discovery
-    release_date     = models.DateField(null=True, blank=True, db_index=True)
-    is_explicit      = models.BooleanField(default=False)
+    release_date = models.DateField(null=True, blank=True, db_index=True)
+    is_explicit = models.BooleanField(default=False)
     popularity_score = models.IntegerField(default=0, db_index=True)  # 0-100
 
     duration_seconds = models.IntegerField(default=0)
-    cover_url        = models.URLField(max_length=500, blank=True, default='')
-    audio_url        = models.URLField(max_length=500, blank=True, default='')
-    storage_path     = models.CharField(max_length=500, blank=True, default='')
-    created_at       = models.DateTimeField(auto_now_add=True)
+    cover_url = models.URLField(max_length=500, blank=True, default='')
+    audio_url = models.URLField(max_length=500, blank=True, default='')
+    storage_path = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [

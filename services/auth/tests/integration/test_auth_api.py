@@ -268,5 +268,5 @@ class TestAuthSecurity:
                 url = reverse(endpoint, kwargs=kwargs)
                 response = client.get(url)
                 assert response.status_code in [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN]
-            except:
+            except Exception:
                 pass  # URL might not exist

@@ -1,9 +1,6 @@
 import uuid
-import json
 from django.utils.deprecation import MiddlewareMixin
-from rest_framework.request import Request
 from .models import UserAction
-from .serializers import UserActionSerializer
 from django.utils import timezone
 from datetime import timedelta
 

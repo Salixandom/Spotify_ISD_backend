@@ -7,7 +7,6 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from playlistapp.models import Playlist
 from trackapp.models import Track
-from searchapp.models import Artist, Album, Song
 
 
 @pytest.mark.django_db
@@ -29,7 +28,7 @@ class TestAuthenticationRequired:
         for endpoint_name, action, kwargs in endpoints:
             try:
                 url = reverse(endpoint_name, kwargs=kwargs)
-            except:
+            except Exception:
                 continue
 
             if action == 'list':
@@ -60,7 +59,7 @@ class TestAuthenticationRequired:
         for endpoint_name, action, kwargs in endpoints:
             try:
                 url = reverse(endpoint_name, kwargs=kwargs)
-            except:
+            except Exception:
                 continue
 
             if action == 'list':
@@ -92,7 +91,7 @@ class TestAuthenticationRequired:
         for endpoint_name in endpoints:
             try:
                 url = reverse(endpoint_name)
-            except:
+            except Exception:
                 continue
 
             response = client.get(url)

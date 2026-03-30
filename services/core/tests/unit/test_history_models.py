@@ -2,11 +2,9 @@
 Unit tests for History app models.
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from django.utils import timezone
 from historyapp.models import Play, UserAction, UndoRedoConfiguration
-from playlistapp.models import Playlist
-from searchapp.models import Song, Artist, Album
 
 
 @pytest.mark.django_db

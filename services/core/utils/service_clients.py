@@ -9,7 +9,6 @@ import requests
 import os
 import logging
 from typing import List, Dict, Optional
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 

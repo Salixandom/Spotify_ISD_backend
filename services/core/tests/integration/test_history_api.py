@@ -5,7 +5,6 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 from historyapp.models import Play, UserAction, UndoRedoConfiguration
-from playlistapp.models import Playlist
 
 
 @pytest.mark.django_db

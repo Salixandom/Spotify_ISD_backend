@@ -2,7 +2,7 @@
 Unit tests for Search app models.
 """
 import pytest
-from datetime import date, datetime
+from datetime import date
 from searchapp.models import Artist, Album, Song, Genre
 
 

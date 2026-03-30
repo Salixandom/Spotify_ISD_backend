@@ -5,12 +5,12 @@ from searchapp.models import Song
 
 
 class Play(models.Model):
-    user_id   = models.IntegerField()
-    song      = models.ForeignKey(
-                    Song,
-                    on_delete=models.CASCADE,
-                    related_name='plays'
-                )
+    user_id = models.IntegerField()
+    song = models.ForeignKey(
+        Song,
+        on_delete=models.CASCADE,
+        related_name='plays'
+    )
     played_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -146,4 +146,3 @@ class UndoRedoConfiguration(models.Model):
 
     def __str__(self):
         return f"Undo/Redo Config for User {self.user_id}"
-
