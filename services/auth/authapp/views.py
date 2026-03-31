@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
-from .serializers import RegisterSerializer, UserSerializer, UserProfileSerializer, PublicUserProfileSerializer, UserFollowSerializer
+from .serializers import RegisterSerializer, UserSerializer, UserProfileSerializer, PublicUserProfileSerializer, UserFollowSerializer, ChangePasswordSerializer
 from django.contrib.auth.models import User
 from django.db import connection
 
@@ -11,7 +11,55 @@ from utils.responses import (
     ServiceUnavailableResponse,
     NotFoundResponse,
     ForbiddenResponse,
+    UnauthorizedResponse,
 )
+
+
+class CustomTokenRefreshView(APIView):
+    """
+    Custom token refresh view that returns JWT tokens in our standardized response format.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+
+        serializer = TokenRefreshSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return UnauthorizedResponse(
+                message='Invalid refresh token'
+            )
+
+        # Return refreshed access token in our standardized format
+        return SuccessResponse(
+            data=serializer.validated_data,
+            message='Token refreshed successfully'
+        )
+
+
+class CustomTokenObtainPairView(APIView):
+    """
+    Custom login view that returns JWT tokens in our standardized response format.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+        serializer = TokenObtainPairSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return ValidationErrorResponse(
+                errors=serializer.errors,
+                message='Invalid credentials'
+            )
+
+        # Return tokens in our standardized format
+        return SuccessResponse(
+            data=serializer.validated_data,
+            message='Login successful'
+        )
 
 
 class RegisterView(APIView):
@@ -269,7 +317,7 @@ class FollowersView(APIView):
 
         followers = UserFollow.objects.filter(
             following_id=target_user_id
-        ).select_related('follower').order_by('-created_at')
+        ).order_by('-created_at')
 
         serializer = UserFollowSerializer(followers, many=True)
         return SuccessResponse(
@@ -296,7 +344,7 @@ class FollowingView(APIView):
 
         following = UserFollow.objects.filter(
             follower_id=target_user_id
-        ).select_related('following').order_by('-created_at')
+        ).order_by('-created_at')
 
         serializer = UserFollowSerializer(following, many=True)
         return SuccessResponse(
@@ -306,4 +354,51 @@ class FollowingView(APIView):
                 'count': following.count()
             },
             message=f'Retrieved {following.count()} following'
+        )
+
+
+class ChangePasswordView(APIView):
+    """
+    Change password for authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.contrib.auth import authenticate
+
+        serializer = ChangePasswordSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return ValidationErrorResponse(
+                errors=serializer.errors,
+                message='Invalid password data'
+            )
+
+        current_password = serializer.validated_data['current_password']
+        new_password = serializer.validated_data['new_password']
+
+        # Verify current password
+        user = authenticate(
+            username=request.user.username,
+            password=current_password
+        )
+
+        if not user:
+            return UnauthorizedResponse(
+                message='Current password is incorrect'
+            )
+
+        # Check if new password is same as current
+        if current_password == new_password:
+            return ValidationErrorResponse(
+                message='New password must be different from current password'
+            )
+
+        # Change password
+        request.user.set_password(new_password)
+        request.user.save()
+
+        return SuccessResponse(
+            data={'success': True},
+            message='Password changed successfully'
         )

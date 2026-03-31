@@ -10,14 +10,18 @@ from .views import (
     FollowUserView,
     FollowersView,
     FollowingView,
+    CustomTokenObtainPairView,
+    ChangePasswordView,
 )
+from .token_views import CustomTokenRefreshView
 
 urlpatterns = [
     # Authentication
     path("register/", RegisterView.as_view()),
-    path("login/", TokenObtainPairView.as_view()),
-    path("token/refresh/", TokenRefreshView.as_view()),
+    path("login/", CustomTokenObtainPairView.as_view()),  # Custom login with response wrapper
+    path("token/refresh/", CustomTokenRefreshView.as_view()),  # Custom refresh with response wrapper
     path("me/", MeView.as_view()),
+    path("change-password/", ChangePasswordView.as_view()),  # Password change endpoint
 
     # User Profiles
     path("profile/me/", MyProfileView.as_view()),

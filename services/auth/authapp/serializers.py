@@ -14,6 +14,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             username=validated_data["username"], password=validated_data["password"]
         )
+
+        # Auto-create UserProfile for new users
+        UserProfile.objects.get_or_create(
+            user_id=user.id,
+            defaults={
+                'display_name': validated_data["username"],
+                'bio': '',
+                'profile_visibility': 'public'
+            }
+        )
+
         return user
 
 
@@ -102,3 +113,17 @@ class UserFollowSerializer(serializers.ModelSerializer):
             return user.username
         except User.DoesNotExist:
             return None
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for password change"""
+    current_password = serializers.CharField(write_only=True, required=True)
+    new_password = serializers.CharField(write_only=True, required=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': 'New passwords do not match'
+            })
+        return data
