@@ -35,6 +35,7 @@ services:
       - auth
       - core
       - collaboration
+      - playback
 
   auth:
     build: ./services/auth
@@ -108,6 +109,27 @@ services:
       - "traefik.http.routers.share.rule=PathPrefix(`/api/share`)"
       - "traefik.http.routers.share.service=collab-svc"
       - "traefik.http.services.collab-svc.loadbalancer.server.port=8003"
+    depends_on:
+      - db
+
+  playback:
+    build: ./services/playback
+    # Entrypoint script automatically runs migrations on startup
+    # Set RUN_MIGRATIONS=false in .env to skip auto-migrations
+    command: uv run uvicorn core.asgi:application --host 0.0.0.0 --port 8004 --reload
+    volumes:
+      - ./services/playback:/app
+    ports:
+      - "8004:8004"
+    env_file:
+      - ./services/playback/.env
+    environment:
+      - RUN_MIGRATIONS=true
+      - DJANGO_SETTINGS_MODULE=core.settings
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.playback.rule=PathPrefix(`/api/playback`)"
+      - "traefik.http.services.playback.loadbalancer.server.port=8004"
     depends_on:
       - db
 
