@@ -65,6 +65,8 @@ Fields:
 
 `GET /api/playback/stream/<id>/` returns the raw audio file with the appropriate `Content-Type` header (e.g., `audio/mpeg` for MP3). No authentication required — this allows the browser's `<audio>` element to fetch the file directly.
 
+The server sends the **entire file** in one response. The browser buffers it fully, which means **seeking (jumping to any position) works out of the box** — forward, backward, anywhere. No special backend support is needed for this.
+
 ---
 
 ## Playing Audio in React
@@ -237,6 +239,60 @@ function Playlist({ token }) {
 }
 ```
 
+## Seeking
+
+Seeking (jumping to any position in the track) works easily from the frontend. Because the backend sends the **entire audio file** in one response, the browser has the full file buffered — so it can seek to any timestamp instantly without making a new request to the server.
+
+### How to Seek
+
+Set `audio.currentTime` to any value between `0` and `audio.duration`:
+
+```js
+// Jump to 30 seconds
+audio.currentTime = 30;
+
+// Jump to halfway through the track
+audio.currentTime = audio.duration / 2;
+
+// Rewind 10 seconds
+audio.currentTime = Math.max(0, audio.currentTime - 10);
+
+// Skip forward 10 seconds
+audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+```
+
+### Seek Bar with an `<input type="range">`
+
+The standard approach is a range slider that maps to the audio duration. This is already shown in **Option 2** above, but here it is in isolation:
+
+```jsx
+// Render the seek bar
+<input
+  type="range"
+  min={0}
+  max={duration}        // audio.duration in seconds
+  value={currentTime}   // audio.currentTime in seconds
+  onChange={(e) => {
+    audioRef.current.currentTime = Number(e.target.value);
+  }}
+  step={0.1}            // optional: finer granularity
+/>
+```
+
+The `timeupdate` event fires as the audio plays, keeping `currentTime` in sync with the slider position automatically.
+
+### Skip Buttons
+
+```jsx
+const skip = (seconds) => {
+  const audio = audioRef.current;
+  audio.currentTime = Math.min(Math.max(0, audio.currentTime + seconds), audio.duration);
+};
+
+<button onClick={() => skip(-10)}>-10s</button>
+<button onClick={() => skip(10)}>+10s</button>
+```
+
 ## Key Browser Audio API Methods
 
 | Method/Property | Description |
@@ -265,5 +321,5 @@ function Playlist({ token }) {
 
 - The stream endpoint (`/api/playback/stream/<id>/`) requires no authentication, so `<audio src="...">` works directly without custom headers.
 - Supported audio formats: `.mp3`, `.wav`, `.ogg`, `.m4a`. MP3 has the widest browser support.
-- For seeking to work properly, the server supports range requests via Django's `FileResponse`.
+- Seeking works out of the box — the server returns the full file, so the browser can jump to any position freely.
 - Maximum upload size is 20MB.
