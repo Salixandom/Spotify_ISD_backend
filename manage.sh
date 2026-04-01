@@ -17,8 +17,8 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Service list - 3-service architecture
-SERVICES=("auth" "core" "collaboration" "db" "traefik")
-ALL_SERVICES=("auth" "core" "collaboration")
+SERVICES=("auth" "core" "collaboration" "playback" "db" "traefik")
+ALL_SERVICES=("auth" "core" "collaboration" "playback")
 
 # Helper functions
 print_header() {
