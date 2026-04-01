@@ -6,6 +6,7 @@ from utils.responses import (
     SuccessResponse,
     NotFoundResponse,
     ServiceUnavailableResponse,
+    ForbiddenResponse,
 )
 from django.db import connection
 from .models import ShareLink
@@ -16,6 +17,18 @@ class CreateShareLinkView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, playlist_id):
+        # Check if playlist is archived by the user
+        is_archived = False
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM playlistapp_userplaylistarchive WHERE playlist_id = %s AND user_id = %s",
+                [playlist_id, request.user.id]
+            )
+            if cursor.fetchone():
+                is_archived = True
+
+        if is_archived:
+            return ForbiddenResponse(message='Cannot create share link for a hidden playlist')
         share = ShareLink.objects.create(
             playlist_id=playlist_id,
             created_by_id=request.user.id,
@@ -38,6 +51,19 @@ class ViewShareLinkView(APIView):
 
         if not share.is_valid:
             return NotFoundResponse(message='Share link is expired')
+
+        # Check if playlist is currently archived by the link creator
+        is_archived = False
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM playlistapp_userplaylistarchive WHERE playlist_id = %s AND user_id = %s",
+                [share.playlist_id, share.created_by_id]
+            )
+            if cursor.fetchone():
+                is_archived = True
+
+        if is_archived:
+            return NotFoundResponse(message='Share link is inactive for hidden playlist')
 
         return SuccessResponse(
             data={
