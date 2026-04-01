@@ -534,8 +534,8 @@ class RecommendationsView(APIView):
         recommended_songs = []
         seen_songs = set()
 
-        # Prioritize genres by weight
-        for genre, _ in genre_weights.most_common():
+        # Prioritize genres by weight (sorted descending by count)
+        for genre, _ in sorted(genre_weights.items(), key=lambda x: x[1], reverse=True):
             if len(recommended_songs) >= limit:
                 break
 
