@@ -145,7 +145,9 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(owner_id=self.request.user.id)
+        playlist = serializer.save(owner_id=self.request.user.id)
+        # Auto-follow for the owner so it appears in their profile/library
+        UserPlaylistFollow.objects.get_or_create(user_id=self.request.user.id, playlist=playlist)
 
     def list(self, request, *args, **kwargs):
         """Override to wrap response in SuccessResponse format"""
@@ -164,8 +166,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return SuccessResponse(data=serializer.data, message='Playlist created successfully', status=201)
+        return SuccessResponse(data=serializer.data, message='Playlist created successfully', status_code=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
