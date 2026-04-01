@@ -182,9 +182,15 @@ class PublicProfileView(APIView):
             )
 
         if profile.profile_visibility == 'followers' and not is_own_profile:
-            # TODO: Check if requester follows this user (implement after Task 3.2)
-            # For now, show limited profile
-            pass
+            from .models import UserFollow
+            is_following = UserFollow.objects.filter(
+                follower_id=request.user.id,
+                following_id=user_id
+            ).exists()
+            if not is_following:
+                return ForbiddenResponse(
+                    message='This profile is only visible to followers'
+                )
 
         # For public profiles or own profile, show full data
         if is_own_profile:

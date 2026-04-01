@@ -18,6 +18,8 @@ class Playlist(models.Model):
         choices=TYPE_CHOICES,
         default='solo'
     )
+    is_system_generated = models.BooleanField(default=False)  # For Spotify-made playlists like Discover Weekly, Liked Songs
+    is_liked_songs = models.BooleanField(default=False)  # Special flag for the Liked Songs playlist
     cover_url = models.URLField(max_length=500, blank=True, default='')
     max_songs = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -22,9 +22,9 @@ class PlaylistSerializer(serializers.ModelSerializer):
         model = Playlist
         fields = [
             'id', 'owner_id', 'name', 'description',
-            'visibility', 'playlist_type', 'cover_url',
-            'max_songs', 'created_at', 'updated_at',
-            'snapshots',  # Include related snapshots
+            'visibility', 'playlist_type', 'is_system_generated',
+            'is_liked_songs', 'cover_url', 'max_songs',
+            'created_at', 'updated_at', 'snapshots',
         ]
         read_only_fields = ['owner_id', 'created_at', 'updated_at']
 

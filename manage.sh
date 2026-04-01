@@ -67,17 +67,18 @@ show_menu() {
     echo -e "  ${CYAN}7.${NC}  Health check (all apps)"
     echo -e "  ${CYAN}8.${NC}  Health check (specific service/apps)"
     echo -e "  ${CYAN}9.${NC}  Make migrations (create migration files)"
-    echo -e "  ${CYAN}10.${NC}  Run migrations (apply to database)"
-    echo -e "  ${CYAN}11.${NC}  Create superuser"
-    echo -e "  ${CYAN}12.${NC}  Access service shell"
-    echo -e "  ${CYAN}13.${NC}  Rebuild service"
-    echo -e "  ${CYAN}14.${NC}  Test endpoints"
-    echo -e "  ${CYAN}15.${NC}  Clean restart (remove volumes)"
-    echo -e "  ${CYAN}16.${NC}  Show service URLs"
-    echo -e "  ${CYAN}17.${NC}  Database operations"
-    echo -e "  ${CYAN}18.${NC}  Update & Restart from Git"
+    echo -e "  ${CYAN}10.${NC}  Show migrations (view migration status)"
+    echo -e "  ${CYAN}11.${NC}  Run migrations (apply to database)"
+    echo -e "  ${CYAN}12.${NC}  Create superuser"
+    echo -e "  ${CYAN}13.${NC}  Access service shell"
+    echo -e "  ${CYAN}14.${NC}  Rebuild service"
+    echo -e "  ${CYAN}15.${NC}  Test endpoints"
+    echo -e "  ${CYAN}16.${NC}  Clean restart (remove volumes)"
+    echo -e "  ${CYAN}17.${NC}  Show service URLs"
+    echo -e "  ${CYAN}18.${NC}  Database operations"
+    echo -e "  ${CYAN}19.${NC}  Update & Restart from Git"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-18]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-19]: ${NC}"
 }
 
 show_status() {
@@ -246,6 +247,10 @@ run_migrations() {
     echo -e "${BOLD}Running migrations for all services...${NC}"
     echo ""
 
+    echo -e "${CYAN}Auth service migrations:${NC}"
+    docker compose exec -T auth uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
+
+    echo ""
     echo -e "${CYAN}Core service migrations:${NC}"
     docker compose exec -T core uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
 
@@ -256,6 +261,26 @@ run_migrations() {
     echo ""
     echo -e "${GREEN}✓ Migrations completed${NC}"
     sleep 2
+}
+
+show_migrations() {
+    print_header
+    echo -e "${BOLD}Migration Status for All Services:${NC}"
+    echo ""
+
+    echo -e "${CYAN}Auth service migrations:${NC}"
+    docker compose exec -T auth uv run python manage.py showmigrations 2>&1 || echo -e "${YELLOW}Service not running or no migrations${NC}"
+
+    echo ""
+    echo -e "${CYAN}Core service migrations:${NC}"
+    docker compose exec -T core uv run python manage.py showmigrations 2>&1 || echo -e "${YELLOW}Service not running or no migrations${NC}"
+
+    echo ""
+    echo -e "${CYAN}Collaboration service migrations:${NC}"
+    docker compose exec -T collaboration uv run python manage.py showmigrations 2>&1 || echo -e "${YELLOW}Service not running or no migrations${NC}"
+
+    echo ""
+    read -p "Press Enter to continue..."
 }
 
 make_migrations() {
@@ -571,15 +596,16 @@ main() {
             7) health_check_all ;;
             8) health_check_service ;;
             9) make_migrations ;;
-            10) run_migrations ;;
-            11) create_superuser ;;
-            12) access_shell ;;
-            13) rebuild_service ;;
-            14) test_endpoints ;;
-            15) clean_restart ;;
-            16) show_urls ;;
-            17) database_operations ;;
-            18) update_restart ;;
+            10) show_migrations ;;
+            11) run_migrations ;;
+            12) create_superuser ;;
+            13) access_shell ;;
+            14) rebuild_service ;;
+            15) test_endpoints ;;
+            16) clean_restart ;;
+            17) show_urls ;;
+            18) database_operations ;;
+            19) update_restart ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"
