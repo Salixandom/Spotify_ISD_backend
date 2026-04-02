@@ -19,6 +19,7 @@ cp .env.example .env
 cp services/auth/.env.example services/auth/.env
 cp services/core/.env.example services/core/.env
 cp services/collaboration/.env.example services/collaboration/.env
+cp services/playback/.env.example services/playback/.env
 
 ./manage.sh
 ```

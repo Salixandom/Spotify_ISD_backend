@@ -28,13 +28,12 @@ class PlaylistSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['owner_id', 'created_at', 'updated_at']
 
+    def to_representation(self, instance):
+        """Return the database value - playlist_type is managed by the database"""
+        return super().to_representation(instance)
+
     def validate(self, data):
-        playlist_type = data.get('playlist_type', getattr(self.instance, 'playlist_type', 'solo'))
-        visibility = data.get('visibility', getattr(self.instance, 'visibility', 'public'))
-        if playlist_type == 'collaborative' and visibility != 'private':
-            raise serializers.ValidationError(
-                {'visibility': 'Collaborative playlists must be private.'}
-            )
+        # Validation removed - collaborative playlists can be public or private
         return data
 
 

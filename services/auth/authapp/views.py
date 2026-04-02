@@ -66,6 +66,11 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Registration request data: {request.data}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -74,6 +79,7 @@ class RegisterView(APIView):
                 message='User registered successfully',
                 status_code=201
             )
+        logger.warning(f"Registration validation failed: {serializer.errors}")
         return ValidationErrorResponse(
             errors=serializer.errors,
             message='Registration failed'

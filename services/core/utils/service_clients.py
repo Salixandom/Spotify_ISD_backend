@@ -104,7 +104,8 @@ class CollaborationServiceClient:
             response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
             data = response.json()
-            return data.get('playlist_ids', [])
+            # Response is wrapped in SuccessResponse: {success, message, data: {playlist_ids: [...]}}
+            return data.get('data', {}).get('playlist_ids', [])
         except requests.RequestException as e:
             logger.error(f"Failed to fetch user collaborations: {e}")
             return []

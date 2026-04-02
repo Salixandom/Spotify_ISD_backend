@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"python3 -c \\\"\\nimport django\\nimport os\\nos.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')\\ndjango.setup()\\n\\nfrom authapp.serializers import RegisterSerializer\\n\\n# Test wi...",
+  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 2, in <module>\n    import django\nModuleNotFoundError: No module named 'django'",
+  "timestamp": "2026-04-02T00:27:02.512Z",
+  "retry_count": 1
+}

@@ -76,9 +76,10 @@ show_menu() {
     echo -e "  ${CYAN}16.${NC}  Clean restart (remove volumes)"
     echo -e "  ${CYAN}17.${NC}  Show service URLs"
     echo -e "  ${CYAN}18.${NC}  Database operations"
-    echo -e "  ${CYAN}19.${NC}  Update & Restart from Git"
+    echo -e "  ${CYAN}19.${NC}  Check database tables and row counts"
+    echo -e "  ${CYAN}20.${NC}  Update & Restart from Git"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-19]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-20]: ${NC}"
 }
 
 show_status() {
@@ -259,6 +260,10 @@ run_migrations() {
     docker compose exec -T collaboration uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
 
     echo ""
+    echo -e "${CYAN}Playback service migrations:${NC}"
+    docker compose exec -T playback uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations or service not running${NC}"
+
+    echo ""
     echo -e "${GREEN}✓ Migrations completed${NC}"
     sleep 2
 }
@@ -278,6 +283,10 @@ show_migrations() {
     echo ""
     echo -e "${CYAN}Collaboration service migrations:${NC}"
     docker compose exec -T collaboration uv run python manage.py showmigrations 2>&1 || echo -e "${YELLOW}Service not running or no migrations${NC}"
+
+    echo ""
+    echo -e "${CYAN}Playback service migrations:${NC}"
+    docker compose exec -T playback uv run python manage.py showmigrations 2>&1 || echo -e "${YELLOW}Service not running or no migrations${NC}"
 
     echo ""
     read -p "Press Enter to continue..."
@@ -437,6 +446,30 @@ clean_restart() {
     fi
 }
 
+check_db_tables() {
+    print_header
+    echo -e "${BOLD}Database Tables and Row Counts:${NC}"
+    echo ""
+
+    local query="
+    SELECT
+        schemaname,
+        tablename,
+        n_tup_ins - n_tup_del as row_count
+    FROM pg_stat_user_tables
+    ORDER BY schemaname, tablename;
+    "
+
+    echo -e "${CYAN}Fetching table information...${NC}"
+    echo ""
+
+    docker compose exec -T db psql -U spotifyuser -d spotifydb -c "$query" 2>&1 || \
+        echo -e "${RED}Failed to fetch table information. Is the database running?${NC}"
+
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
 show_urls() {
     print_header
     echo -e "${BOLD}Service URLs:${NC}"
@@ -568,10 +601,14 @@ update_restart() {
 
         echo ""
         echo -e "${CYAN}Running migrations...${NC}"
+        echo -e "${CYAN}Auth service:${NC}"
+        docker compose exec -T auth uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations to apply${NC}"
         echo -e "${CYAN}Core service:${NC}"
         docker compose exec -T core uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations to apply${NC}"
         echo -e "${CYAN}Collaboration service:${NC}"
         docker compose exec -T collaboration uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations to apply${NC}"
+        echo -e "${CYAN}Playback service:${NC}"
+        docker compose exec -T playback uv run python manage.py migrate --noinput 2>&1 || echo -e "${YELLOW}No migrations to apply${NC}"
 
         echo ""
         echo -e "${GREEN}✓ Update complete!${NC}"
@@ -605,7 +642,8 @@ main() {
             16) clean_restart ;;
             17) show_urls ;;
             18) database_operations ;;
-            19) update_restart ;;
+            19) check_db_tables ;;
+            20) update_restart ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"
