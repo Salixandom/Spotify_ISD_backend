@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from django.db import connection
+from django.shortcuts import get_object_or_404
 from utils.responses import (
     SuccessResponse,
     ErrorResponse,
@@ -13,6 +14,7 @@ from utils.responses import (
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from .models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot, PlaylistComment, PlaylistCommentLike
+from utils.service_clients import CollaborationServiceClient
 from .serializers import PlaylistSerializer, PlaylistSnapshotSerializer, PlaylistCommentSerializer, PlaylistCommentLikeSerializer
 from trackapp.models import Track
 
@@ -22,6 +24,37 @@ PLAYLIST_SORT_MAP = {
     'updated_at':  'updated_at',
     'track_count': 'track_count',
 }
+
+
+def user_can_access_playlist(playlist, user_id, auth_header=''):
+    """
+    Check if a user can access a playlist.
+    Returns True if user is:
+    - The owner of the playlist
+    - A collaborator on the playlist
+    - The playlist is public
+    """
+    # Check if user is owner
+    if playlist.owner_id == user_id:
+        return True
+
+    # Check if playlist is public
+    if playlist.visibility == 'public':
+        return True
+
+    # Check if user is a collaborator
+    try:
+        collaborative_playlist_ids = CollaborationServiceClient.get_user_collaborations(user_id, auth_header)
+        logger = __import__('logging').getLogger(__name__)
+        logger.error(f"DEBUG: User {user_id} collaborations: {collaborative_playlist_ids}, playlist {playlist.id}")
+        if playlist.id in collaborative_playlist_ids:
+            return True
+    except Exception as e:
+        logger = __import__('logging').getLogger(__name__)
+        logger.error(f"DEBUG: Collaboration check failed for user {user_id}, playlist {playlist.id}: {e}")
+        pass  # If service call fails, deny access
+
+    return False
 
 
 class PlaylistViewSet(viewsets.ModelViewSet):
@@ -43,7 +76,23 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         - include_followed: true (default: excluded)
         - filter: followed|liked (special filters)
         """
-        qs = Playlist.objects.filter(owner_id=self.request.user.id)
+        # Get playlists owned by user OR playlists where user is a collaborator
+        owned_playlists = Playlist.objects.filter(owner_id=self.request.user.id)
+
+        # Get collaborative playlists via service call
+        try:
+            auth_header = self.request.META.get('HTTP_AUTHORIZATION', '')
+            collaborative_playlist_ids = CollaborationServiceClient.get_user_collaborations(
+                self.request.user.id,
+                auth_header
+            )
+            collaborated_playlists = Playlist.objects.filter(id__in=collaborative_playlist_ids)
+        except Exception:
+            # If collaboration service fails, just use owned playlists
+            collaborated_playlists = Playlist.objects.none()
+
+        # Combine both querysets and remove duplicates
+        qs = owned_playlists | collaborated_playlists
 
         # Enhanced filtering
         visibility = self.request.query_params.get('visibility')
@@ -155,9 +204,29 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return SuccessResponse(data=serializer.data, message='Playlists retrieved successfully')
 
+    def get_object(self):
+        """
+        Override to bypass filtered queryset for individual playlist retrieval.
+        This allows us to check authorization on ALL playlists, not just
+        the ones in the filtered queryset.
+        """
+        queryset = Playlist.objects.all()
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+        # May raise a permission denied
+        self.check_object_permissions(self.request, obj)
+        return obj
+
     def retrieve(self, request, *args, **kwargs):
-        """Override to wrap response in SuccessResponse format"""
+        """Override to wrap response in SuccessResponse format and check access"""
         instance = self.get_object()
+
+        # Check if user can access this playlist (owner, collaborator, or public)
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not user_can_access_playlist(instance, request.user.id, auth_header):
+            return ForbiddenResponse(message='Not authorized to access this playlist')
+
         serializer = self.get_serializer(instance)
         return SuccessResponse(data=serializer.data, message='Playlist retrieved successfully')
 
@@ -170,18 +239,17 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
-        if playlist.owner_id != request.user.id:
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized')
         partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(playlist, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return SuccessResponse(data=serializer.data, message='Playlist updated successfully')
 
     def destroy(self, request, *args, **kwargs):
         playlist = self.get_object()
-        if playlist.owner_id != request.user.id:
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized')
         self.perform_destroy(playlist)
         return SuccessResponse(data=None, message='Playlist deleted successfully')
@@ -207,7 +275,7 @@ class PlaylistStatsView(APIView):
             return NotFoundResponse(message='Playlist not found')
 
         # Check authorization
-        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized to view this playlist')
 
         # Track statistics
@@ -1188,21 +1256,21 @@ class AutoGeneratedPlaylistsView(APIView):
                     song_ids = [song['id'] for song in response_data['songs']]
                     tracks_to_add = Track.objects.filter(
                         song_id__in=song_ids
-                    ).select_related('song', 'song__artist', 'song__album')[:track_limit]
+                    ).select_related('song', 'song__artist', 'song__album').order_by('song_id').distinct('song_id')[:track_limit]
                 else:
                     # Fallback to trending
                     tracks_to_add = Track.objects.filter(
                         song__popularity_score__gt=0
                     ).select_related('song', 'song__artist', 'song__album').order_by(
-                        '-song__popularity_score'
-                    )[:track_limit]
+                        'song_id', '-song__popularity_score'
+                    ).distinct('song_id')[:track_limit]
             except Exception as e:
                 # Fallback to trending on error
                 tracks_to_add = Track.objects.filter(
                     song__popularity_score__gt=0
                 ).select_related('song', 'song__artist', 'song__album').order_by(
-                    '-song__popularity_score'
-                )[:track_limit]
+                    'song_id', '-song__popularity_score'
+                ).distinct('song_id')[:track_limit]
 
         elif generation_type == 'trending':
             # Get trending songs
@@ -1266,7 +1334,7 @@ class AutoGeneratedPlaylistsView(APIView):
             if genre:
                 tracks_to_add = tracks_queryset.filter(
                     song__genre=genre
-                ).order_by('-added_at')[:track_limit]
+                ).order_by('song_id', '-added_at').distinct('song_id')[:track_limit]
             else:
                 # For mood, we'll use genre as a proxy
                 mood_genre_map = {
@@ -1278,7 +1346,7 @@ class AutoGeneratedPlaylistsView(APIView):
                 genres = mood_genre_map.get(mood, ['Pop'])
                 tracks_to_add = tracks_queryset.filter(
                     song__genre__in=genres
-                ).order_by('-added_at')[:track_limit]
+                ).order_by('song_id', '-added_at').distinct('song_id')[:track_limit]
 
         if not tracks_to_add:
             return NotFoundResponse(message='No tracks found for the specified criteria')
@@ -1431,7 +1499,7 @@ class PlaylistExportView(APIView):
             return NotFoundResponse(message='Playlist not found')
 
         # Authorization check
-        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized to export this playlist')
 
         # Get all tracks with song details
@@ -1816,7 +1884,7 @@ class PlaylistCommentsView(APIView):
             return NotFoundResponse(message='Playlist not found')
 
         # Authorization: can view comments on public playlists or own playlists
-        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized to view comments on this playlist')
 
         # Get top-level comments only (no parent)
@@ -1858,7 +1926,7 @@ class PlaylistCommentsView(APIView):
             return NotFoundResponse(message='Playlist not found')
 
         # Authorization: can comment on public playlists or own playlists
-        if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+        if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
             return ForbiddenResponse(message='Not authorized to comment on this playlist')
 
         content = request.data.get('content')
@@ -1939,7 +2007,7 @@ class CommentDetailView(APIView):
         # Check playlist access
         try:
             playlist = Playlist.objects.get(id=comment.playlist_id)
-            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
                 return ForbiddenResponse(message='Not authorized to view this comment')
         except Playlist.DoesNotExist:
             return NotFoundResponse(message='Playlist not found')
@@ -2033,7 +2101,7 @@ class CommentRepliesView(APIView):
         # Check playlist access
         try:
             playlist = Playlist.objects.get(id=parent_comment.playlist_id)
-            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
                 return ForbiddenResponse(message='Not authorized to view replies')
         except Playlist.DoesNotExist:
             return NotFoundResponse(message='Playlist not found')
@@ -2087,7 +2155,7 @@ class CommentLikeView(APIView):
         # Check playlist access
         try:
             playlist = Playlist.objects.get(id=comment.playlist_id)
-            if playlist.owner_id != request.user.id and playlist.visibility != 'public':
+            if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
                 return ForbiddenResponse(message='Not authorized to like comments on this playlist')
         except Playlist.DoesNotExist:
             return NotFoundResponse(message='Playlist not found')

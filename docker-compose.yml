@@ -49,7 +49,7 @@ services:
     env_file:
       - ./services/auth/.env
     environment:
-      - RUN_MIGRATIONS=false  # Auth has no models (no migrations needed)
+      - RUN_MIGRATIONS=true  # Auth service has models and requires migrations
       - DJANGO_SETTINGS_MODULE=core.settings
     labels:
       - "traefik.enable=true"

@@ -74,11 +74,21 @@ class JoinView(APIView):
             playlist_id=invite.playlist_id,
             user_id=request.user.id,
         )
+
+        # If this is the first collaborator, update the playlist_type to 'collaborative'
+        if created:
+            self._update_playlist_type_to_collaborative(invite.playlist_id)
+
+        # Auto-follow the playlist in core service so it appears in user's library
+        auth_header = request.headers.get('Authorization', '')
+        self._auto_follow_playlist(invite.playlist_id, request.user.id, auth_header)
+
         if not created:
             return SuccessResponse(
                 data={'already_member': True},
                 message='Already a member of this playlist'
             )
+
         return SuccessResponse(
             data=CollaboratorSerializer(collab).data,
             message='Added as collaborator successfully',
@@ -89,15 +99,55 @@ class JoinView(APIView):
         """Make cross-service call to core API to auto-follow the playlist."""
         import requests
         import os
+        import logging
+        logger = logging.getLogger(__name__)
+
         core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
         try:
-            requests.post(
+            logger.info(f"Attempting to auto-follow playlist {playlist_id} for user {user_id}")
+            response = requests.post(
                 f'{core_service_url}/api/playlists/{playlist_id}/follow/',
                 headers={'Authorization': auth_header},
                 timeout=5
             )
-        except Exception:
-            pass  # Non-critical: auto-follow failure should not block joining
+            if response.status_code == 200 or response.status_code == 201:
+                logger.info(f"Successfully auto-followed playlist {playlist_id} for user {user_id}")
+            else:
+                logger.warning(f"Failed to auto-follow playlist {playlist_id}: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"Exception during auto-follow of playlist {playlist_id}: {e}")
+            # Non-critical: auto-follow failure should not block joining
+
+    def _update_playlist_type_to_collaborative(self, playlist_id):
+        """Update playlist type to collaborative in core service."""
+        import requests
+        import os
+        import logging
+        logger = logging.getLogger(__name__)
+
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        try:
+            # Get current playlist data first to check if update is needed
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                timeout=5
+            )
+            if response.status_code == 200:
+                playlist_data = response.json()
+                if playlist_data.get('playlist_type') != 'collaborative':
+                    # Update to collaborative
+                    update_response = requests.patch(
+                        f'{core_service_url}/api/playlists/{playlist_id}/',
+                        json={'playlist_type': 'collaborative'},
+                        timeout=5
+                    )
+                    if update_response.status_code == 200:
+                        logger.info(f"Updated playlist {playlist_id} type to collaborative")
+                    else:
+                        logger.warning(f"Failed to update playlist {playlist_id} type: {update_response.status_code}")
+        except Exception as e:
+            logger.error(f"Exception during playlist type update for {playlist_id}: {e}")
+            # Non-critical: type update failure should not block joining
 
 
 class CollaboratorListView(APIView):
