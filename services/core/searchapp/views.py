@@ -33,7 +33,10 @@ class SearchView(APIView):
         query = request.query_params.get('q', '')
 
         songs = Song.objects.select_related('artist', 'album')
-        playlists = Playlist.objects.filter(visibility='public')
+        # Show all public playlists + user's own playlists (both public and private)
+        playlists = Playlist.objects.filter(
+            Q(visibility='public') | Q(owner_id=request.user.id)
+        ).distinct()
         artists = Artist.objects.all()
         albums = Album.objects.select_related('artist')
 
@@ -178,7 +181,10 @@ class PlaylistSearchView(APIView):
         query = request.query_params.get('q', '')
         playlist_type = request.query_params.get('type', '')
 
-        qs = Playlist.objects.filter(visibility='public')
+        # Show all public playlists + user's own playlists (both public and private)
+        qs = Playlist.objects.filter(
+            Q(visibility='public') | Q(owner_id=request.user.id)
+        ).distinct()
 
         if query:
             qs = qs.filter(

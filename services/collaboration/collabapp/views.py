@@ -85,6 +85,20 @@ class JoinView(APIView):
             status_code=201
         )
 
+    def _auto_follow_playlist(self, playlist_id, user_id, auth_header):
+        """Make cross-service call to core API to auto-follow the playlist."""
+        import requests
+        import os
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        try:
+            requests.post(
+                f'{core_service_url}/api/playlists/{playlist_id}/follow/',
+                headers={'Authorization': auth_header},
+                timeout=5
+            )
+        except Exception:
+            pass  # Non-critical: auto-follow failure should not block joining
+
 
 class CollaboratorListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
