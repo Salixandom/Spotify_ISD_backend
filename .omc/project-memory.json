@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1774994069787,
-  "projectRoot": "/home/sakib/Projects/Spotify_ISD/Spotify_ISD_backend",
+  "lastScanned": 1775132712551,
+  "projectRoot": "/Users/mesbah/Desktop/Spotify-ISD/Spotify_ISD_backend",
   "techStack": {
     "languages": [],
     "frameworks": [],
@@ -38,8 +38,8 @@
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 33,
-      "lastAccessed": 1774994069751,
+      "fileCount": 34,
+      "lastAccessed": 1775132712539,
       "keyFiles": [
         "AGENT-GUIDE.md",
         "CONTRIBUTING.md",
@@ -52,7 +52,7 @@
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 2,
-      "lastAccessed": 1774994069770,
+      "lastAccessed": 1775132712540,
       "keyFiles": [
         "generate-secrets.sh",
         "seed_database.py"
@@ -61,16 +61,139 @@
     "services": {
       "path": "services",
       "purpose": "Business logic services",
-      "fileCount": 0,
-      "lastAccessed": 1774994069772,
+      "fileCount": 1,
+      "lastAccessed": 1775132712540,
       "keyFiles": []
+    },
+    "test_reports": {
+      "path": "test_reports",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775132712540,
+      "keyFiles": [
+        "test_report_2026-04-02_13-25-14.txt"
+      ]
     }
   },
   "hotPaths": [
     {
+      "path": "docs/TESTING.md",
+      "accessCount": 21,
+      "lastAccessed": 1775133534890,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/performance/test_query_performance.py",
+      "accessCount": 8,
+      "lastAccessed": 1775132751071,
+      "type": "file"
+    },
+    {
+      "path": "test_reports/test_report_2026-04-02_13-25-14.txt",
+      "accessCount": 7,
+      "lastAccessed": 1775115060120,
+      "type": "file"
+    },
+    {
+      "path": "services/core/core/settings.py",
+      "accessCount": 4,
+      "lastAccessed": 1775113727701,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/unit/test_playlist_models.py",
+      "accessCount": 3,
+      "lastAccessed": 1775113677502,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/unit/test_track_models.py",
+      "accessCount": 3,
+      "lastAccessed": 1775113694081,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/tests/unit/test_collab_models.py",
+      "accessCount": 3,
+      "lastAccessed": 1775113715057,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/conftest.py",
+      "accessCount": 3,
+      "lastAccessed": 1775113721543,
+      "type": "file"
+    },
+    {
+      "path": "manage.sh",
+      "accessCount": 3,
+      "lastAccessed": 1775133500326,
+      "type": "directory"
+    },
+    {
       "path": "services/core/.env",
       "accessCount": 2,
       "lastAccessed": 1774994686510,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/core/settings.py",
+      "accessCount": 2,
+      "lastAccessed": 1775113633857,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/core/settings.py",
+      "accessCount": 2,
+      "lastAccessed": 1775113637840,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/tests/conftest.py",
+      "accessCount": 2,
+      "lastAccessed": 1775113648268,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/tests/conftest.py",
+      "accessCount": 2,
+      "lastAccessed": 1775113653837,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/urls.py",
+      "accessCount": 2,
+      "lastAccessed": 1775115464866,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/integration/test_history_api.py",
+      "accessCount": 2,
+      "lastAccessed": 1775115489998,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/integration/test_playlist_api.py",
+      "accessCount": 2,
+      "lastAccessed": 1775132574827,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/integration/test_search_api.py",
+      "accessCount": 2,
+      "lastAccessed": 1775132595871,
+      "type": "file"
+    },
+    {
+      "path": "services/core/tests/integration/test_authorization.py",
+      "accessCount": 2,
+      "lastAccessed": 1775132632790,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/handlers.py",
+      "accessCount": 2,
+      "lastAccessed": 1775133493997,
       "type": "file"
     },
     {
@@ -90,6 +213,60 @@
       "accessCount": 1,
       "lastAccessed": 1774995215336,
       "type": "file"
+    },
+    {
+      "path": "services/core/tests/integration/test_track_api.py",
+      "accessCount": 1,
+      "lastAccessed": 1775055837593,
+      "type": "file"
+    },
+    {
+      "path": "services/core/trackapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1775055844071,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1775055848954,
+      "type": "file"
+    },
+    {
+      "path": "services/collaboration/collabapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1775055892191,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/urls.py",
+      "accessCount": 1,
+      "lastAccessed": 1775115368511,
+      "type": "directory"
+    },
+    {
+      "path": "services/core/historyapp/views.py",
+      "accessCount": 1,
+      "lastAccessed": 1775133424132,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/services.py",
+      "accessCount": 1,
+      "lastAccessed": 1775133429699,
+      "type": "file"
+    },
+    {
+      "path": "services/core/historyapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1775133435021,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1775133435477,
+      "type": "directory"
     }
   ],
   "userDirectives": []

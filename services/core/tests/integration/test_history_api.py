@@ -18,7 +18,7 @@ class TestPlayRecording:
         response = api_client.post(url, data)
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data['status'] == 'recorded'
+        assert response.data['data']['status'] == 'recorded'
 
         # Verify play was recorded
         play = Play.objects.filter(user_id=authenticated_user, song=test_song).first()
@@ -41,7 +41,7 @@ class TestPlayRecording:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) >= 1
+        assert len(response.data['data']) >= 1
 
 
 @pytest.mark.django_db
@@ -72,12 +72,13 @@ class TestUndoRedo:
         assert action.is_undone is True
 
     def test_undo_nonexistent_action(self, api_client, authenticated_user):
-        """Test undoing non-existent action."""
+        """Test undoing non-existent action returns 404."""
         import uuid
         url = reverse('undo-action', kwargs={'action_id': uuid.uuid4()})
         response = api_client.post(url)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        # View returns 404 for unknown action IDs
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_redo_action(self, api_client, authenticated_user, test_playlist):
         """Test redoing an undone action."""
@@ -125,8 +126,8 @@ class TestUserActionsView:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'actions' in response.data
-        assert 'total' in response.data
+        assert 'actions' in response.data['data']
+        assert 'total' in response.data['data']
 
     def test_limit_actions(self, api_client, authenticated_user):
         """Test limiting number of actions returned."""
@@ -143,7 +144,7 @@ class TestUserActionsView:
         response = api_client.get(url, {'limit': 5})
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['actions']) <= 5
+        assert len(response.data['data']['actions']) <= 5
 
 
 @pytest.mark.django_db
@@ -174,10 +175,13 @@ class TestUndoableActionsView:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'undoable_actions' in response.data
+        assert 'undoable_actions' in response.data['data']
 
         # Should only return undoable, not undone actions
-        assert all(a['is_undoable'] and not a['is_undone'] for a in response.data['undoable_actions'])
+        assert all(
+            a['is_undoable'] and not a['is_undone']
+            for a in response.data['data']['undoable_actions']
+        )
 
 
 @pytest.mark.django_db
@@ -190,8 +194,8 @@ class TestUndoRedoConfig:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'undo_window_hours' in response.data
-        assert 'max_actions' in response.data
+        assert 'undo_window_hours' in response.data['data']
+        assert 'max_actions' in response.data['data']
 
     def test_update_config(self, api_client, authenticated_user):
         """Test updating undo/redo configuration."""
@@ -204,9 +208,9 @@ class TestUndoRedoConfig:
         response = api_client.put(url, data)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['undo_window_hours'] == 48
-        assert response.data['max_actions'] == 2000
-        assert response.data['auto_cleanup'] is False
+        assert response.data['data']['undo_window_hours'] == 48
+        assert response.data['data']['max_actions'] == 2000
+        assert response.data['data']['auto_cleanup'] is False
 
         # Verify config is persisted
         config = UndoRedoConfiguration.objects.get(user_id=authenticated_user)

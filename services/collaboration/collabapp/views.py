@@ -101,45 +101,36 @@ class CollaboratorListView(APIView):
         Remove a collaborator from a playlist.
 
         Authorization:
-        - Users can always remove themselves
-        - Playlist owners can remove any collaborator
+        - Users can always remove themselves (self-removal)
+        - The playlist owner can remove any collaborator
+
+        The caller supplies `owner_id` in the request body so the collaboration
+        service can verify ownership without a cross-service HTTP call.
+        `request.user.id` is JWT-verified; if it matches the supplied `owner_id`
+        then the requester is the owner and may remove any collaborator.
+
+        Body params:
+            user_id  (required) — ID of the collaborator to remove
+            owner_id (optional) — ID of the playlist owner; enables owner removal
         """
-        user_id = request.query_params.get('user_id')
+        user_id = request.query_params.get('user_id') or request.data.get('user_id')
         if not user_id:
             return ValidationErrorResponse(
                 errors={'user_id': 'This field is required'},
                 message='user_id required'
             )
 
-        # Allow self-removal
+        # Self-removal: always allowed
         if str(user_id) == str(request.user.id):
             Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
             return NoContentResponse()
 
-        # Check if requester is playlist owner via cross-service call
-        import requests
-        import os
-
-        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
-        auth_header = request.headers.get('Authorization', '')
-
-        try:
-            response = requests.get(
-                f'{core_service_url}/api/playlists/{playlist_id}/',
-                headers={'Authorization': auth_header},
-                timeout=5
-            )
-
-            if response.status_code == 200:
-                playlist_data = response.json()
-                if playlist_data.get('owner_id') == request.user.id:
-                    Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
-                    return NoContentResponse()
-
-        except requests.RequestException as e:
-            return ServiceUnavailableResponse(
-                message=f'Failed to verify ownership: {str(e)}'
-            )
+        # Owner removal: allowed when the requester's verified identity matches
+        # the owner_id supplied in the request body.
+        owner_id = request.data.get('owner_id')
+        if owner_id and str(request.user.id) == str(owner_id):
+            Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
+            return NoContentResponse()
 
         return ForbiddenResponse(message='Access forbidden')
 

@@ -5,6 +5,7 @@
 # Description: Menu-driven interface for managing the microservices stack
 
 set -e
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -77,8 +78,10 @@ show_menu() {
     echo -e "  ${CYAN}17.${NC}  Show service URLs"
     echo -e "  ${CYAN}18.${NC}  Database operations"
     echo -e "  ${CYAN}19.${NC}  Update & Restart from Git"
+    echo -e "  ${CYAN}20.${NC}  Run tests (all services)"
+    echo -e "  ${CYAN}21.${NC}  Run tests (specific service)"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-19]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-21]: ${NC}"
 }
 
 show_status() {
@@ -536,6 +539,131 @@ database_operations() {
     esac
 }
 
+run_tests_all() {
+    print_header
+    echo -e "${BOLD}Running tests for all services...${NC}"
+    echo ""
+
+    # Create reports directory at project root (next to manage.sh)
+    local report_dir
+    report_dir="$(dirname "$0")/test_reports"
+    mkdir -p "$report_dir"
+
+    local timestamp
+    timestamp=$(date +%Y-%m-%d_%H-%M-%S)
+    local report_file="$report_dir/test_report_${timestamp}.txt"
+
+    local overall_pass=true
+
+    # Helper: run pytest for one service, echo to terminal AND append to report file
+    _run_service_tests() {
+        local svc="$1"
+        local label="$2"
+
+        echo -e "${CYAN}━━━ ${label} ━━━${NC}"
+        printf '\n=== %s ===\n' "$label" >> "$report_file"
+
+        # Capture output; tee so it also prints live
+        if docker compose exec -T "$svc" uv run pytest --tb=short -v 2>&1 \
+            | tee -a "$report_file"; then
+            echo -e "${GREEN}✓ ${label} passed${NC}"
+            printf '>>> RESULT: PASSED\n' >> "$report_file"
+        else
+            echo -e "${RED}✗ ${label} failed${NC}"
+            printf '>>> RESULT: FAILED\n' >> "$report_file"
+            overall_pass=false
+        fi
+        echo ""
+        printf '\n' >> "$report_file"
+    }
+
+    # Write report header
+    {
+        echo "========================================"
+        echo " Spotify ISD Backend — Test Report"
+        echo " Generated: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "========================================"
+        echo ""
+    } > "$report_file"
+
+    _run_service_tests "core"          "Core Service"
+    _run_service_tests "collaboration" "Collaboration Service"
+    _run_service_tests "auth"          "Auth Service"
+
+    # Write report footer
+    {
+        echo "========================================"
+        if [ "$overall_pass" = true ]; then
+            echo " OVERALL: ALL TESTS PASSED"
+        else
+            echo " OVERALL: SOME TESTS FAILED"
+        fi
+        echo "========================================"
+    } >> "$report_file"
+
+    echo ""
+    if [ "$overall_pass" = true ]; then
+        echo -e "${GREEN}${BOLD}All tests passed ✓${NC}"
+    else
+        echo -e "${RED}${BOLD}Some tests failed — see output above${NC}"
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Report saved to:${NC} $report_file"
+    read -p "Press Enter to continue..."
+}
+
+run_tests_service() {
+    print_header
+    echo -e "${BOLD}Select service to test:${NC}"
+    echo ""
+
+    select service in "${ALL_SERVICES[@]}" "Back to main menu"; do
+        case $service in
+            "Back to main menu")
+                break
+                ;;
+            *)
+                if [ -n "$service" ]; then
+                    print_header
+                    echo -e "${BOLD}Select test scope for $service:${NC}"
+                    echo ""
+                    echo -e "  ${CYAN}1.${NC}  All tests"
+                    echo -e "  ${CYAN}2.${NC}  Unit tests only"
+                    echo -e "  ${CYAN}3.${NC}  Integration tests only"
+                    echo ""
+                    echo -ne "${BOLD}Enter choice [1-3]: ${NC}"
+                    read -r scope_choice
+
+                    print_header
+                    case $scope_choice in
+                        1)
+                            echo -e "${BOLD}Running all tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest --tb=short 2>&1 || true
+                            ;;
+                        2)
+                            echo -e "${BOLD}Running unit tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest tests/unit/ --tb=short 2>&1 || true
+                            ;;
+                        3)
+                            echo -e "${BOLD}Running integration tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest tests/integration/ --tb=short 2>&1 || true
+                            ;;
+                        *)
+                            echo -e "${RED}Invalid choice${NC}"
+                            ;;
+                    esac
+                fi
+                read -p "Press Enter to continue..."
+                break
+                ;;
+        esac
+    done
+}
+
 update_restart() {
     print_header
     echo -e "${BOLD}Update & Restart from Git${NC}"
@@ -606,6 +734,8 @@ main() {
             17) show_urls ;;
             18) database_operations ;;
             19) update_restart ;;
+            20) run_tests_all ;;
+            21) run_tests_service ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"

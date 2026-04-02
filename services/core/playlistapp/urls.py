@@ -35,8 +35,8 @@ urlpatterns = [
     path("featured/", FeaturedPlaylistsView.as_view(), name="featured-playlists"),
     # Phase 2: Core Operations
     path("<int:playlist_id>/duplicate/", DuplicatePlaylistView.as_view(), name="playlist-duplicate"),
-    path("batch-delete/", BatchDeleteView.as_view(), name="batch-delete"),
-    path("batch-update/", BatchUpdateView.as_view(), name="batch-update"),
+    path("batch-delete/", BatchDeleteView.as_view(), name="playlist-batch-delete"),
+    path("batch-update/", BatchUpdateView.as_view(), name="playlist-batch-update"),
     path("<int:playlist_id>/cover/", CoverUploadView.as_view(), name="cover-upload"),
     # Phase 3: Social Features
     path("users/<int:user_id>/playlists/", UserPlaylistsView.as_view(), name="user-playlists"),

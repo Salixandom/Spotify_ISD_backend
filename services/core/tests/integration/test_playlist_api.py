@@ -19,7 +19,7 @@ class TestPlaylistViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) >= 1
+        assert len(response.data['data']) >= 1
 
     def test_create_playlist(self, api_client, authenticated_user):
         """Test creating a new playlist."""
@@ -34,8 +34,8 @@ class TestPlaylistViewSet:
         response = api_client.post(url, data)
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data['name'] == 'New Playlist'
-        assert response.data['owner_id'] == authenticated_user
+        assert response.data['data']['name'] == 'New Playlist'
+        assert response.data['data']['owner_id'] == authenticated_user
 
     def test_retrieve_playlist(self, api_client, authenticated_user, test_playlist):
         """Test retrieving a specific playlist."""
@@ -43,8 +43,8 @@ class TestPlaylistViewSet:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['id'] == test_playlist.id
-        assert response.data['name'] == test_playlist.name
+        assert response.data['data']['id'] == test_playlist.id
+        assert response.data['data']['name'] == test_playlist.name
 
     def test_update_own_playlist(self, api_client, authenticated_user, test_playlist):
         """Test updating own playlist."""
@@ -53,7 +53,7 @@ class TestPlaylistViewSet:
         response = api_client.patch(url, data)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['name'] == 'Updated Playlist Name'
+        assert response.data['data']['name'] == 'Updated Playlist Name'
 
     def test_delete_own_playlist(self, api_client, authenticated_user, test_playlist):
         """Test deleting own playlist."""
@@ -71,7 +71,7 @@ class TestPlaylistViewSet:
         response = api_client.get(url, {'visibility': 'public'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert all(p['visibility'] == 'public' for p in response.data['results'])
+        assert all(p['visibility'] == 'public' for p in response.data['data'])
 
     def test_search_playlists(self, api_client, authenticated_user):
         """Test searching playlists by name/description."""
@@ -85,7 +85,7 @@ class TestPlaylistViewSet:
         response = api_client.get(url, {'q': 'Rock'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['results']) > 0
+        assert len(response.data['data']) > 0
 
 
 @pytest.mark.django_db
@@ -98,9 +98,9 @@ class TestPlaylistStatsView:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'total_tracks' in response.data
-        assert 'total_duration_seconds' in response.data
-        assert 'genres' in response.data
+        assert 'total_tracks' in response.data['data']
+        assert 'total_duration_seconds' in response.data['data']
+        assert 'genres' in response.data['data']
 
 
 @pytest.mark.django_db
@@ -109,7 +109,7 @@ class TestPlaylistFollowView:
 
     def test_follow_playlist(self, api_client, authenticated_user, test_playlist):
         """Test following a playlist."""
-        url = reverse('playlist-follow', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-follow', kwargs={'playlist_id': test_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -127,7 +127,7 @@ class TestPlaylistFollowView:
             playlist=test_playlist
         )
 
-        url = reverse('playlist-follow', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-follow', kwargs={'playlist_id': test_playlist.id})
         response = api_client.delete(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -145,7 +145,7 @@ class TestPlaylistLikeView:
 
     def test_like_playlist(self, api_client, authenticated_user, test_playlist):
         """Test liking a playlist."""
-        url = reverse('playlist-like', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-like', kwargs={'playlist_id': test_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -163,7 +163,7 @@ class TestPlaylistLikeView:
             playlist=test_playlist
         )
 
-        url = reverse('playlist-like', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-like', kwargs={'playlist_id': test_playlist.id})
         response = api_client.delete(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -186,10 +186,10 @@ class TestBatchOperations:
 
         url = reverse('playlist-batch-delete')
         data = {'playlist_ids': [playlist1.id, playlist2.id]}
-        response = api_client.delete(url, data)
+        response = api_client.delete(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['deleted'] == 2
+        assert response.data['data']['deleted'] == 2
 
         # Verify playlists are deleted
         assert not Playlist.objects.filter(id=playlist1.id).exists()
@@ -205,10 +205,10 @@ class TestBatchOperations:
             'playlist_ids': [playlist1.id, playlist2.id],
             'updates': {'visibility': 'private'}
         }
-        response = api_client.patch(url, data)
+        response = api_client.patch(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['updated'] == 2
+        assert response.data['data']['updated'] == 2
 
         # Verify playlists are updated
         playlist1.refresh_from_db()

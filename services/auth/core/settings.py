@@ -80,5 +80,7 @@ else:
         }
     }
 
+DATABASES["default"]["TEST"] = {"NAME": "spotifydb_test"}
+
 STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
