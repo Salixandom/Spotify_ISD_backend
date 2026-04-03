@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
+import requests
 
 from utils.responses import (
     SuccessResponse,
@@ -133,7 +134,9 @@ class JoinView(APIView):
                 timeout=5
             )
             if response.status_code == 200:
-                playlist_data = response.json()
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
                 if playlist_data.get('playlist_type') != 'collaborative':
                     # Update to collaborative
                     update_response = requests.patch(
@@ -195,7 +198,9 @@ class CollaboratorListView(APIView):
             )
 
             if response.status_code == 200:
-                playlist_data = response.json()
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
                 if playlist_data.get('owner_id') == request.user.id:
                     Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
                     return NoContentResponse()
@@ -226,11 +231,42 @@ class MyRoleView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, playlist_id):
+        # First check if user is the owner via cross-service call
+        import os
+
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        auth_header = request.headers.get('Authorization', '')
+
+        try:
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                headers={'Authorization': auth_header},
+                timeout=5
+            )
+
+            if response.status_code == 200:
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
+
+                # Check if user is owner (for ALL playlist types, not just collaborative)
+                if playlist_data.get('owner_id') == request.user.id:
+                    return SuccessResponse(
+                        data={'role': 'owner'},
+                        message='User is the owner of this playlist'
+                    )
+        except requests.RequestException:
+            pass  # Continue to collaborator check
+
+        # Check if user is a collaborator
         try:
             Collaborator.objects.get(playlist_id=playlist_id, user_id=request.user.id)
+            return SuccessResponse(
+                data={'role': 'collaborator'},
+                message='User is a collaborator'
+            )
         except Collaborator.DoesNotExist:
-            return NotFoundResponse(message='Not a collaborator')
-        return SuccessResponse(
-            data={'role': 'collaborator'},
-            message='User is a collaborator'
-        )
+            return SuccessResponse(
+                data={'role': None},
+                message='User is neither owner nor collaborator'
+            )

@@ -28,6 +28,25 @@ class PlaylistSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['owner_id', 'created_at', 'updated_at']
 
+    def create(self, validated_data):
+        """Create playlist with default name if not provided"""
+        # Get the owner_id from context (set by the viewset)
+        request = self.context.get('request')
+        if request:
+            validated_data['owner_id'] = request.user.id
+
+        # Generate default name if not provided or blank
+        name = validated_data.get('name', '').strip()
+        if not name:
+            # Create without name first to get ID, then update with default name
+            validated_data['name'] = ''
+            playlist = Playlist.objects.create(**validated_data)
+            playlist.name = f"My playlist #{playlist.id}"
+            playlist.save()
+            return playlist
+
+        return Playlist.objects.create(**validated_data)
+
     def to_representation(self, instance):
         """Return the database value - playlist_type is managed by the database"""
         return super().to_representation(instance)

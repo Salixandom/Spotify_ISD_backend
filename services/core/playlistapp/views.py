@@ -662,62 +662,91 @@ class UserPlaylistsView(APIView):
     GET /api/users/{id}/playlists/
 
     Returns playlists for a specific user:
-    - If requesting own playlists: shows all (public + private)
+    - If requesting own playlists: shows all (public + private + collaborative)
     - If requesting others' playlists: shows only public
     - Supports all filtering parameters from PlaylistViewSet
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, user_id):
-        # Start with all playlists for this user
-        qs = Playlist.objects.filter(owner_id=user_id)
+        # Helper function to apply common filters to a queryset
+        def apply_filters(qs):
+            # Privacy check: if not requesting own playlists, only show public
+            if request.user.id != user_id:
+                qs = qs.filter(visibility='public')
 
-        # Privacy check: if not requesting own playlists, only show public
-        if request.user.id != user_id:
-            qs = qs.filter(visibility='public')
+            # Visibility filter
+            visibility = request.query_params.get('visibility')
+            if visibility in ['public', 'private']:
+                qs = qs.filter(visibility=visibility)
 
-        # Apply the same filtering logic as PlaylistViewSet
-        # Visibility filter
-        visibility = request.query_params.get('visibility')
-        if visibility in ['public', 'private']:
-            qs = qs.filter(visibility=visibility)
+            # Type filter
+            playlist_type = request.query_params.get('type')
+            if playlist_type in ['solo', 'collaborative']:
+                qs = qs.filter(playlist_type=playlist_type)
 
-        # Type filter
-        playlist_type = request.query_params.get('type')
-        if playlist_type in ['solo', 'collaborative']:
-            qs = qs.filter(playlist_type=playlist_type)
+            # Filter by system-generated vs user-created
+            is_system_generated = request.query_params.get('is_system_generated')
+            if is_system_generated in ['true', 'false']:
+                qs = qs.filter(is_system_generated=(is_system_generated == 'true'))
 
-        # Filter by system-generated vs user-created
-        is_system_generated = request.query_params.get('is_system_generated')
-        if is_system_generated in ['true', 'false']:
-            qs = qs.filter(is_system_generated=(is_system_generated == 'true'))
+            # Search
+            query = request.query_params.get('q')
+            if query:
+                qs = qs.filter(
+                    Q(name__icontains=query) |
+                    Q(description__icontains=query)
+                )
 
-        # Search
-        query = request.query_params.get('q')
-        if query:
-            qs = qs.filter(
-                Q(name__icontains=query) |
-                Q(description__icontains=query)
-            )
+            # Date range filters
+            created_after = request.query_params.get('created_after')
+            if created_after:
+                try:
+                    qs = qs.filter(created_at__gte=created_after)
+                except ValueError:
+                    pass
 
-        # Date range filters
-        created_after = request.query_params.get('created_after')
-        if created_after:
+            created_before = request.query_params.get('created_before')
+            if created_before:
+                try:
+                    qs = qs.filter(created_at__lte=created_before)
+                except ValueError:
+                    pass
+
+            # Exclude archived by default (apply before union!)
+            if request.query_params.get('include_archived') != 'true':
+                qs = qs.exclude(archived_by__user_id=request.user.id)
+
+            return qs
+
+        # Get playlists owned by user and apply filters
+        owned_playlists = apply_filters(Playlist.objects.filter(owner_id=user_id))
+
+        # If requesting own playlists, also include collaborative playlists
+        collaborative_playlists = Playlist.objects.none()
+        if request.user.id == user_id:
             try:
-                qs = qs.filter(created_at__gte=created_after)
-            except ValueError:
-                pass
+                # Get collaborative playlist IDs using the collaboration service
+                auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+                collaborative_playlist_ids = CollaborationServiceClient.get_user_collaborations(user_id, auth_header)
 
-        created_before = request.query_params.get('created_before')
-        if created_before:
-            try:
-                qs = qs.filter(created_at__lte=created_before)
-            except ValueError:
-                pass
+                if collaborative_playlist_ids:
+                    # Apply same filters to collaborative playlists
+                    collaborative_playlists = apply_filters(
+                        Playlist.objects.filter(id__in=collaborative_playlist_ids)
+                    )
+            except Exception as e:
+                logger = __import__('logging').getLogger(__name__)
+                logger.error(f"Failed to fetch collaborative playlists for user {user_id}: {str(e)}")
 
-        # Exclude archived by default
-        if request.query_params.get('include_archived') != 'true':
-            qs = qs.exclude(archived_by__user_id=request.user.id)
+        # Combine owned and collaborative playlists
+        # Use union() but convert to list to avoid QuerySet limitations
+        owned_ids = list(owned_playlists.values_list('id', flat=True))
+        collab_ids = list(collaborative_playlists.values_list('id', flat=True))
+        all_ids = list(set(owned_ids + collab_ids))
+
+        # Fetch all playlists and apply additional sorting/pagination
+        qs = Playlist.objects.filter(id__in=all_ids)
 
         # Sorting
         sort = request.query_params.get('sort', 'updated_at')
@@ -739,13 +768,21 @@ class UserPlaylistsView(APIView):
         total = qs.count()
         playlists = qs[offset:offset + limit]
 
+        # Add a flag to indicate which playlists are collaborative
+        playlists_data = []
+        for playlist in playlists:
+            playlist_dict = PlaylistSerializer(playlist).data
+            # Mark if this is a collaborative playlist where user is not owner
+            playlist_dict['is_collaborator'] = (playlist.owner_id != user_id and playlist.playlist_type == 'collaborative')
+            playlists_data.append(playlist_dict)
+
         return SuccessResponse(
             data={
                 'user_id': user_id,
                 'total': total,
                 'limit': limit,
                 'offset': offset,
-                'playlists': PlaylistSerializer(playlists, many=True).data
+                'playlists': playlists_data
             },
             message=f'Retrieved {len(playlists)} playlists'
         )
@@ -764,15 +801,29 @@ class PlaylistFollowView(APIView):
         except Playlist.DoesNotExist:
             return NotFoundResponse(message='Playlist not found')
 
-        # Cannot follow own playlists
-        if playlist.owner_id == request.user.id:
-            return ValidationErrorResponse(
-                errors={'operation': 'Cannot follow your own playlist'},
-                message='Cannot follow your own playlist'
-            )
+        # Check if user is owner
+        is_owner = playlist.owner_id == request.user.id
 
-        # Can only follow public playlists
-        if playlist.visibility != 'public':
+        # Check if user is collaborator via service client
+        is_collaborator = False
+        if not is_owner:
+            from utils.service_clients import CollaborationServiceClient
+            auth_header = request.headers.get('Authorization', '')
+
+            try:
+                # Use the service client to check if user is collaborator
+                is_collaborator = CollaborationServiceClient.is_collaborator(
+                    playlist_id=playlist_id,
+                    user_id=request.user.id,
+                    auth_token=auth_header
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to check collaborator status: {e}")
+                # If service is unavailable, allow follow attempt (backend will validate)
+
+        # Regular users (not owners or collaborators) can only follow public playlists
+        if not is_owner and not is_collaborator and playlist.visibility != 'public':
             return ValidationErrorResponse(
                 errors={'operation': 'Can only follow public playlists'},
                 message='Can only follow public playlists'
