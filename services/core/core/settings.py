@@ -89,3 +89,7 @@ TEMPLATES = [
 
 STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Timezone configuration - store all datetimes in UTC
+USE_TZ = True
+TIME_ZONE = 'UTC'

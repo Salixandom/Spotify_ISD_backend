@@ -180,6 +180,10 @@ health_check_all() {
     echo -e "${YELLOW}Share App:${NC}           $(check_health "share" "http://localhost/api/share/health/")"
     echo ""
 
+    echo -e "${CYAN}Playback Service Apps:${NC}"
+    echo -e "${YELLOW}Playback App:${NC}        $(check_health "playback" "http://localhost/api/playback/health/")"
+    echo ""
+
     echo -e "${CYAN}Infrastructure:${NC}"
     echo -e "${YELLOW}Traefik Dashboard:${NC}   $(check_health "traefik" "http://localhost:8080")"
     echo ""
@@ -232,6 +236,16 @@ health_check_service() {
                             echo ""
                             echo -e "${CYAN}Overall Collaboration Service:${NC}"
                             curl -s http://localhost/api/collab/health/ | jq '.' 2>/dev/null || echo "Service unavailable"
+                            ;;
+                        "playback")
+                            echo -e "${CYAN}Playback Service Apps:${NC}"
+                            echo ""
+                            echo -ne "${YELLOW}playback:${NC} "
+                            check_health "playback" "http://localhost/api/playback/health/"
+                            curl -s "http://localhost/api/playback/health/" | jq -r '.status' 2>/dev/null || echo "unavailable"
+                            echo ""
+                            echo -e "${CYAN}Overall Playback Service:${NC}"
+                            curl -s http://localhost/api/playback/health/ | jq '.' 2>/dev/null || echo "Service unavailable"
                             ;;
                     esac
                     echo ""
@@ -412,6 +426,9 @@ test_endpoints() {
     echo -n "Collab health: "
     curl -s http://localhost/api/collab/health/ | jq -r '.status' 2>/dev/null || echo "failed"
 
+    echo -n "Playback health: "
+    curl -s http://localhost/api/playback/health/ | jq -r '.status' 2>/dev/null || echo "failed"
+
     echo ""
     echo -e "${CYAN}Testing protected endpoints (should fail)...${NC}"
     echo ""
@@ -483,6 +500,7 @@ show_urls() {
     echo "  History App:        http://localhost/api/history/"
     echo "  Collab App:         http://localhost/api/collab/"
     echo "  Share App:          http://localhost/api/share/"
+    echo "  Playback App:       http://localhost/api/playback/"
     echo ""
 
     echo -e "${CYAN}Health Check Endpoints by App:${NC}"
@@ -493,6 +511,7 @@ show_urls() {
     echo "  History:        http://localhost/api/history/health/"
     echo "  Collab:         http://localhost/api/collab/health/"
     echo "  Share:          http://localhost/api/share/health/"
+    echo "  Playback:       http://localhost/api/playback/health/"
     echo ""
 
     echo -e "${CYAN}Dashboards & Tools:${NC}"

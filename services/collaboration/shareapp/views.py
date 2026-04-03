@@ -17,6 +17,29 @@ class CreateShareLinkView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, playlist_id):
+        import requests
+        import os
+
+        # Check playlist visibility via core service
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8002')
+        try:
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                timeout=5
+            )
+            if response.status_code == 200:
+                response_json = response.json()
+                playlist_data = response_json.get('data', {})
+                visibility = playlist_data.get('visibility')
+
+                # Only allow share links for public playlists
+                if visibility != 'public':
+                    return ForbiddenResponse(
+                        message='Share links can only be created for public playlists. Use invite links for private playlists.'
+                    )
+        except requests.RequestException:
+            return ServiceUnavailableResponse(message='Failed to verify playlist visibility')
+
         # Check if playlist is archived by the user
         is_archived = False
         with connection.cursor() as cursor:
