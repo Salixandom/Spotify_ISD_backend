@@ -6,6 +6,7 @@ from .views import (
     HealthCheckView,
     MyCollaborationsView,
     MyRoleView,
+    LeavePlaylistView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path('<int:playlist_id>/members/', CollaboratorListView.as_view()),
     path('my-collaborations/', MyCollaborationsView.as_view()),
     path('<int:playlist_id>/my-role/', MyRoleView.as_view()),
+    path('<int:playlist_id>/leave/', LeavePlaylistView.as_view()),
 ]
