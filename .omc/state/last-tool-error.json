@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /home/sakib/Projects/Spotify_ISD/Spotify_ISD_frontend && npm run build\",\"description\":\"Build frontend to verify syntax fix\"}",
+  "error": "Exit code 2\n\n> client@0.0.0 build\n> tsc -b && vite build\n\nsrc/components/comments/PlaylistComments.tsx(244,6): error TS17008: JSX element 'div' has no corresponding closing tag.\nsrc/components/comments/PlaylistComments.tsx(574,20): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?\nsrc/components/comments/PlaylistComments.tsx(576,16): error TS1005: ',' expected.\nsrc/components/comments/PlaylistComments.tsx(578,12): error TS1005: '}' expected.\nsrc/components/comments/PlaylistComm...",
+  "timestamp": "2026-04-03T01:09:54.023Z",
+  "retry_count": 2
+}

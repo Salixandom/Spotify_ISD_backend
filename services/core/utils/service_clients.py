@@ -261,3 +261,35 @@ class CoreServiceClient:
         if playlist and playlist.get('owner_id') == user_id:
             return True
         return False
+
+
+class AuthServiceClient:
+    """Client for communicating with auth service"""
+
+    BASE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth:8001')
+
+    @classmethod
+    def get_user_profile(cls, user_id: int, auth_token: str) -> Optional[Dict]:
+        """
+        Get user profile data from auth service.
+
+        Args:
+            user_id: User ID
+            auth_token: Authorization token
+
+        Returns:
+            User profile data if found, None otherwise
+        """
+        try:
+            headers = {'Authorization': auth_token}
+            url = f'{cls.BASE_URL}/api/auth/profile/{user_id}/'
+            response = requests.get(url, headers=headers, timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                # Response is wrapped in SuccessResponse: {success, message, data: {...}}
+                return data.get('data')
+            return None
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch user profile {user_id}: {e}")
+            return None

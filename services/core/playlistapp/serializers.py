@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Playlist, PlaylistSnapshot, PlaylistComment, PlaylistCommentLike
 
 
@@ -100,6 +101,32 @@ class PlaylistCommentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['user_id', 'likes_count', 'is_edited', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        """Ensure datetime fields are serialized as ISO 8601 with UTC timezone"""
+        data = super().to_representation(instance)
+        # Ensure created_at and updated_at have 'Z' suffix for UTC
+        if data.get('created_at') and isinstance(data['created_at'], str):
+            if not data['created_at'].endswith('Z'):
+                # Parse the datetime and convert to ISO format with Z
+                from datetime import datetime
+                try:
+                    dt = datetime.fromisoformat(data['created_at'].replace('+00:00', ''))
+                    data['created_at'] = dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                except:
+                    # If parsing fails, ensure it has Z suffix
+                    if not data['created_at'].endswith('Z'):
+                        data['created_at'] = data['created_at'] + 'Z'
+        if data.get('updated_at') and isinstance(data['updated_at'], str):
+            if not data['updated_at'].endswith('Z'):
+                from datetime import datetime
+                try:
+                    dt = datetime.fromisoformat(data['updated_at'].replace('+00:00', ''))
+                    data['updated_at'] = dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                except:
+                    if not data['updated_at'].endswith('Z'):
+                        data['updated_at'] = data['updated_at'] + 'Z'
+        return data
 
     def get_username(self, obj):
         """Get username from Django User model"""

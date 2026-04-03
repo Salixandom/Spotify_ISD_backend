@@ -80,6 +80,12 @@
       "type": "file"
     },
     {
+      "path": "services/core/utils/service_clients.py",
+      "accessCount": 4,
+      "lastAccessed": 1775177202259,
+      "type": "file"
+    },
+    {
       "path": "services/auth/authapp/signals.py",
       "accessCount": 3,
       "lastAccessed": 1775089079980,
@@ -92,9 +98,9 @@
       "type": "file"
     },
     {
-      "path": "services/core/utils/service_clients.py",
+      "path": "services/core/playlistapp/serializers.py",
       "accessCount": 2,
-      "lastAccessed": 1775127022169,
+      "lastAccessed": 1775177234418,
       "type": "file"
     },
     {
@@ -150,6 +156,12 @@
       "accessCount": 1,
       "lastAccessed": 1775126919069,
       "type": "file"
+    },
+    {
+      "path": "services/core",
+      "accessCount": 1,
+      "lastAccessed": 1775177188232,
+      "type": "directory"
     }
   ],
   "userDirectives": []

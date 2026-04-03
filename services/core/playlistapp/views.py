@@ -26,6 +26,35 @@ PLAYLIST_SORT_MAP = {
 }
 
 
+def user_can_moderate_comment(playlist, comment, user_id, auth_header=''):
+    """
+    Check if a user can moderate (edit/delete) a comment.
+    Returns True if user is:
+    - The comment author
+    - The playlist owner (can moderate any comment including their own)
+    - A collaborator (can moderate comments from non-owners, but NOT owner's comments)
+    """
+    # Comment author can always moderate their own comment
+    if comment.user_id == user_id:
+        return True
+
+    # Playlist owner can moderate any comment
+    if playlist.owner_id == user_id:
+        return True
+
+    # Collaborators can moderate comments from non-owners
+    try:
+        collaborative_playlist_ids = CollaborationServiceClient.get_user_collaborations(user_id, auth_header)
+        if playlist.id in collaborative_playlist_ids:
+            # Collaborators CANNOT moderate owner's comments
+            if comment.user_id != playlist.owner_id:
+                return True
+    except Exception:
+        pass
+
+    return False
+
+
 def user_can_access_playlist(playlist, user_id, auth_header=''):
     """
     Check if a user can access a playlist.
@@ -1943,7 +1972,7 @@ class PlaylistCommentsView(APIView):
             playlist_id=playlist_id,
             parent_id__isnull=True,
             is_deleted=False
-        ).select_related('user').order_by('-created_at')
+        ).order_by('-created_at')
 
         # Pagination
         limit = int(request.query_params.get('limit', 20))
@@ -2048,7 +2077,7 @@ class CommentDetailView(APIView):
 
     def get(self, request, comment_id):
         try:
-            comment = PlaylistComment.objects.select_related('user').get(
+            comment = PlaylistComment.objects.get(
                 id=comment_id,
                 is_deleted=False
             )
@@ -2082,9 +2111,14 @@ class CommentDetailView(APIView):
         except PlaylistComment.DoesNotExist:
             return NotFoundResponse(message='Comment not found')
 
-        # Only author can edit
-        if comment.user_id != request.user.id:
-            return ForbiddenResponse(message='Not authorized to edit this comment')
+        # Check moderation permissions
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if not user_can_moderate_comment(playlist, comment, request.user.id, auth_header):
+                return ForbiddenResponse(message='Not authorized to edit this comment')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
 
         content = request.data.get('content')
         if not content or not content.strip():
@@ -2117,9 +2151,14 @@ class CommentDetailView(APIView):
         except PlaylistComment.DoesNotExist:
             return NotFoundResponse(message='Comment not found')
 
-        # Only author can delete
-        if comment.user_id != request.user.id:
-            return ForbiddenResponse(message='Not authorized to delete this comment')
+        # Check moderation permissions
+        try:
+            playlist = Playlist.objects.get(id=comment.playlist_id)
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            if not user_can_moderate_comment(playlist, comment, request.user.id, auth_header):
+                return ForbiddenResponse(message='Not authorized to delete this comment')
+        except Playlist.DoesNotExist:
+            return NotFoundResponse(message='Playlist not found')
 
         # Soft delete
         comment.is_deleted = True
@@ -2161,7 +2200,7 @@ class CommentRepliesView(APIView):
         replies = PlaylistComment.objects.filter(
             parent_id=comment_id,
             is_deleted=False
-        ).select_related('user').order_by('-created_at')
+        ).order_by('-created_at')
 
         serializer = PlaylistCommentSerializer(
             replies,
