@@ -17,7 +17,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-# Service list - 3-service architecture
+# Service list - 4-service microservices architecture + infrastructure
 SERVICES=("auth" "core" "collaboration" "playback" "db" "traefik")
 ALL_SERVICES=("auth" "core" "collaboration" "playback")
 
@@ -31,7 +31,7 @@ print_header() {
 
 print_status() {
     local service=$1
-    local status=$(docker-compose ps -q "$service" 2>/dev/null && echo "running" || echo "stopped")
+    local status=$(docker compose ps -q "$service" 2>/dev/null && echo "running" || echo "stopped")
 
     if [ "$status" = "running" ]; then
         echo -e "${GREEN}✓${NC} $service"
@@ -77,15 +77,13 @@ show_menu() {
     echo -e "  ${CYAN}16.${NC}  Clean restart (remove volumes)"
     echo -e "  ${CYAN}17.${NC}  Show service URLs"
     echo -e "  ${CYAN}18.${NC}  Database operations"
-    echo -e "  ${CYAN}19.${NC}  Update & Restart from Git"
-    echo -e "  ${CYAN}20.${NC}  Run tests (all services)"
-    echo -e "  ${CYAN}21.${NC}  Run tests (specific service)"
-    echo ""
-    echo -ne "${BOLD}Enter choice [0-21]: ${NC}"
     echo -e "  ${CYAN}19.${NC}  Check database tables and row counts"
     echo -e "  ${CYAN}20.${NC}  Update & Restart from Git"
+    echo -e "  ${CYAN}21.${NC}  Run tests (all services)"
+    echo -e "  ${CYAN}22.${NC}  Run tests (specific service)"
+    echo -e "  ${CYAN}23.${NC}  Seed Data (Auth → Core → Collab)"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-20]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-23]: ${NC}"
 }
 
 show_status() {
@@ -380,7 +378,7 @@ access_shell() {
                     print_header
                     echo -e "${BOLD}Accessing shell for $service (exit to return)${NC}"
                     echo ""
-                    docker compose exec "$service" bash || docker-compose exec "$service" sh
+                    docker compose exec "$service" bash || docker compose exec "$service" sh
                 fi
                 break
                 ;;
@@ -564,7 +562,7 @@ database_operations() {
             echo ""
             read -p "Enter backup filename: " backup_file
             if [ -f "$backup_file" ]; then
-                cat "$backup_file" | docker-compose exec -T db psql -U spotifyuser -d spotifydb
+                cat "$backup_file" | docker compose exec -T db psql -U spotifyuser -d spotifydb
                 echo ""
                 echo -e "${GREEN}✓ Database restored from $backup_file${NC}"
             else
@@ -719,6 +717,48 @@ run_tests_service() {
     done
 }
 
+seed_data() {
+    print_header
+    echo -e "${BOLD}Seed Data (Auth → Core → Collab)${NC}"
+    echo ""
+    read -p "Continue? (y/n): " confirm
+
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo ""
+        echo -e "${YELLOW}Cancelled${NC}"
+        sleep 1
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Auth service...${NC}"
+    if ! docker exec spotify_isd_backend-auth-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Auth seeding failed. Stopping sequence.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Core service...${NC}"
+    if ! docker exec spotify_isd_backend-core-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Core seeding failed. Stopping sequence.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Collaboration service...${NC}"
+    if ! docker exec spotify_isd_backend-collaboration-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Collaboration seeding failed.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${GREEN}✓ Seeding completed in order: Auth → Core → Collab${NC}"
+    read -p "Press Enter to continue..."
+}
+
 update_restart() {
     print_header
     echo -e "${BOLD}Update & Restart from Git${NC}"
@@ -792,11 +832,11 @@ main() {
             16) clean_restart ;;
             17) show_urls ;;
             18) database_operations ;;
-            19) update_restart ;;
-            20) run_tests_all ;;
-            21) run_tests_service ;;
             19) check_db_tables ;;
             20) update_restart ;;
+            21) run_tests_all ;;
+            22) run_tests_service ;;
+            23) seed_data ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"
