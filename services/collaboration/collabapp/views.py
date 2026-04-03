@@ -168,17 +168,26 @@ class CollaboratorListView(APIView):
         Remove a collaborator from a playlist.
 
         Authorization:
-        - Users can always remove themselves
-        - Playlist owners can remove any collaborator
+        - Users can always remove themselves (self-removal)
+        - The playlist owner can remove any collaborator
+
+        The caller supplies `owner_id` in the request body so the collaboration
+        service can verify ownership without a cross-service HTTP call.
+        `request.user.id` is JWT-verified; if it matches the supplied `owner_id`
+        then the requester is the owner and may remove any collaborator.
+
+        Body params:
+            user_id  (required) — ID of the collaborator to remove
+            owner_id (optional) — ID of the playlist owner; enables owner removal
         """
-        user_id = request.query_params.get('user_id')
+        user_id = request.query_params.get('user_id') or request.data.get('user_id')
         if not user_id:
             return ValidationErrorResponse(
                 errors={'user_id': 'This field is required'},
                 message='user_id required'
             )
 
-        # Allow self-removal
+        # Self-removal: always allowed
         if str(user_id) == str(request.user.id):
             Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
             return NoContentResponse()

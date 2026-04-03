@@ -21,8 +21,8 @@ class TestAuthenticationRequired:
             ('playlist-list', 'list', {}),
             ('playlist-detail', 'detail', {'pk': 1}),
             ('playlist-stats', 'stats', {'playlist_id': 1}),
-            ('playlist-follow', 'follow', {'pk': 1}),
-            ('playlist-like', 'like', {'pk': 1}),
+            ('playlist-follow', 'follow', {'playlist_id': 1}),
+            ('playlist-like', 'like', {'playlist_id': 1}),
         ]
 
         for endpoint_name, action, kwargs in endpoints:
@@ -259,14 +259,14 @@ class TestFollowLikeRestrictions:
 
     def test_cannot_follow_own_playlist(self, api_client, authenticated_user, test_playlist):
         """Test user cannot follow their own playlist."""
-        url = reverse('playlist-follow', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-follow', kwargs={'playlist_id': test_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_cannot_like_own_playlist(self, api_client, authenticated_user, test_playlist):
         """Test user cannot like their own playlist."""
-        url = reverse('playlist-like', kwargs={'pk': test_playlist.id})
+        url = reverse('playlist-like', kwargs={'playlist_id': test_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -280,7 +280,7 @@ class TestFollowLikeRestrictions:
             visibility='private'
         )
 
-        url = reverse('playlist-follow', kwargs={'pk': private_playlist.id})
+        url = reverse('playlist-follow', kwargs={'playlist_id': private_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -294,7 +294,7 @@ class TestFollowLikeRestrictions:
             visibility='private'
         )
 
-        url = reverse('playlist-like', kwargs={'pk': private_playlist.id})
+        url = reverse('playlist-like', kwargs={'playlist_id': private_playlist.id})
         response = api_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -311,10 +311,10 @@ class TestBatchOperationPermissions:
 
         url = reverse('playlist-batch-delete')
         data = {'playlist_ids': [playlist1.id, playlist2.id]}
-        response = api_client.delete(url, data)
+        response = api_client.delete(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['deleted'] == 2
+        assert response.data['data']['deleted'] == 2
 
     def test_batch_delete_mixed_playlists(self, api_client, authenticated_user):
         """Test batch delete only deletes own playlists."""
@@ -324,11 +324,11 @@ class TestBatchOperationPermissions:
 
         url = reverse('playlist-batch-delete')
         data = {'playlist_ids': [own_playlist.id, other_playlist.id]}
-        response = api_client.delete(url, data)
+        response = api_client.delete(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['deleted'] == 1
-        assert response.data['not_authorized'] == 1
+        assert response.data['data']['deleted'] == 1
+        assert response.data['data']['not_authorized'] == 1
 
     def test_batch_update_own_playlists(self, api_client, authenticated_user):
         """Test user can batch update their own playlists."""
@@ -340,10 +340,10 @@ class TestBatchOperationPermissions:
             'playlist_ids': [playlist1.id, playlist2.id],
             'updates': {'visibility': 'private'}
         }
-        response = api_client.patch(url, data)
+        response = api_client.patch(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['updated'] == 2
+        assert response.data['data']['updated'] == 2
 
     def test_batch_update_mixed_playlists(self, api_client, authenticated_user):
         """Test batch update only updates own playlists."""
@@ -356,8 +356,8 @@ class TestBatchOperationPermissions:
             'playlist_ids': [own_playlist.id, other_playlist.id],
             'updates': {'visibility': 'private'}
         }
-        response = api_client.patch(url, data)
+        response = api_client.patch(url, data, format='json')
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['updated'] == 1
-        assert response.data['not_authorized'] == 1
+        assert response.data['data']['updated'] == 1
+        assert response.data['data']['not_authorized'] == 1

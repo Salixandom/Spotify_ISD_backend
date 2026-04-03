@@ -4,6 +4,7 @@ Unit tests for Collaboration app models.
 import pytest
 import uuid
 from datetime import timedelta
+from django.db import IntegrityError
 from django.utils import timezone
 from collabapp.models import Collaborator, InviteLink
 
@@ -174,3 +175,35 @@ class TestInviteLinkModel:
         invite_str = str(invite)
         assert str(invite.token) in invite_str
         assert '1' in invite_str
+
+
+@pytest.mark.django_db
+class TestPostgreSQLConstraints:
+    """PostgreSQL-specific constraint tests for collaboration models.
+
+    Verifies that unique constraints raise django.db.IntegrityError (the
+    specific exception) and that SELECT FOR UPDATE works — both behaviours
+    that SQLite does not reliably reproduce.
+    """
+
+    def test_collaborator_unique_raises_integrity_error(self):
+        """unique_together on (playlist_id, user_id) raises IntegrityError specifically."""
+        Collaborator.objects.create(playlist_id=10, user_id=200)
+        with pytest.raises(IntegrityError):
+            Collaborator.objects.create(playlist_id=10, user_id=200)
+
+    def test_invite_token_unique_raises_integrity_error(self):
+        """Duplicate UUID token on InviteLink raises IntegrityError."""
+        fixed_token = uuid.uuid4()
+        InviteLink.objects.create(playlist_id=1, created_by_id=1, token=fixed_token)
+        with pytest.raises(IntegrityError):
+            InviteLink.objects.create(playlist_id=2, created_by_id=1, token=fixed_token)
+
+    @pytest.mark.django_db(transaction=True)
+    def test_select_for_update_on_collaborator(self):
+        """select_for_update() must not raise — PostgreSQL supports row-level locking."""
+        from django.db import transaction
+        collab = Collaborator.objects.create(playlist_id=20, user_id=300)
+        with transaction.atomic():
+            locked = Collaborator.objects.select_for_update().get(id=collab.id)
+            assert locked.id == collab.id

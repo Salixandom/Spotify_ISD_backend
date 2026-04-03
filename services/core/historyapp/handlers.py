@@ -134,13 +134,46 @@ class TrackAddUndoHandler(UndoHandler):
 
 # Redo handlers (simplified - often reuse undo logic)
 class PlaylistCreateRedoHandler(RedoHandler):
-    """Redo playlist creation = create again"""
+    """Redo playlist creation = restore the playlist that was undone-deleted"""
 
     @staticmethod
+    @transaction.atomic
     def redo(action):
-        # This would typically be handled by re-executing the original request
-        # For now, we'll raise NotImplementedError
-        raise NotImplementedError("Redo not implemented for playlist_create")
+        from playlistapp.models import Playlist
+
+        after_state = action.after_state
+
+        if not after_state or 'id' not in after_state:
+            # No state snapshot available; acknowledge redo without restoring
+            return {
+                'new_state': after_state,
+                'message': 'Redo acknowledged (no state snapshot available)'
+            }
+
+        playlist_id = after_state['id']
+
+        # If the playlist already exists (e.g. undo was never executed), succeed
+        if Playlist.objects.filter(id=playlist_id).exists():
+            return {
+                'new_state': after_state,
+                'message': f'Playlist {playlist_id} already exists'
+            }
+
+        playlist = Playlist.objects.create(
+            id=after_state['id'],
+            name=after_state.get('name', 'Restored Playlist'),
+            description=after_state.get('description', ''),
+            owner_id=after_state['owner_id'],
+            visibility=after_state.get('visibility', 'private'),
+            playlist_type=after_state.get('playlist_type', 'solo'),
+            max_songs=after_state.get('max_songs', 0),
+            cover_url=after_state.get('cover_url', ''),
+        )
+
+        return {
+            'new_state': after_state,
+            'message': f'Restored playlist "{playlist.name}"'
+        }
 
 
 # Handler factories

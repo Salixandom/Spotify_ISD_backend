@@ -170,38 +170,64 @@ class TestCollaboratorList:
         assert len(response.data['data']) == 0
 
     def test_remove_collaborator_self(self, authenticated_client, test_user):
-        """Test a collaborator removing themselves."""
+        """Test a collaborator removing themselves (self-removal)."""
         playlist_id = 1
-
-        # Add current user as collaborator
         Collaborator.objects.create(playlist_id=playlist_id, user_id=test_user.id)
 
         url = f'/api/collab/{playlist_id}/members/?user_id={test_user.id}'
         response = authenticated_client.delete(url)
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-
-        # Verify removal
-        exists = Collaborator.objects.filter(
-            playlist_id=playlist_id,
-            user_id=test_user.id
+        assert not Collaborator.objects.filter(
+            playlist_id=playlist_id, user_id=test_user.id
         ).exists()
-        assert exists is False
+
+    def test_owner_can_remove_other_collaborator(self, authenticated_client, test_user):
+        """Test playlist owner can remove another collaborator by supplying owner_id."""
+        playlist_id = 1
+        other_user_id = test_user.id + 999
+
+        Collaborator.objects.create(playlist_id=playlist_id, user_id=other_user_id)
+
+        # Owner (test_user) removes someone else; owner_id sent in request body
+        url = f'/api/collab/{playlist_id}/members/?user_id={other_user_id}'
+        response = authenticated_client.delete(
+            url,
+            data={'owner_id': test_user.id},
+            format='json',
+        )
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not Collaborator.objects.filter(
+            playlist_id=playlist_id, user_id=other_user_id
+        ).exists()
+
+    def test_non_owner_cannot_remove_other_collaborator(self, authenticated_client, test_user):
+        """Test non-owner gets 403 when trying to remove a different collaborator."""
+        playlist_id = 1
+        other_user_id = test_user.id + 999
+
+        Collaborator.objects.create(playlist_id=playlist_id, user_id=other_user_id)
+
+        url = f'/api/collab/{playlist_id}/members/?user_id={other_user_id}'
+        # No owner_id supplied — requester is not the owner
+        response = authenticated_client.delete(url)
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert Collaborator.objects.filter(
+            playlist_id=playlist_id, user_id=other_user_id
+        ).exists()
 
     def test_remove_collaborator_missing_user_id(self, authenticated_client):
-        """Test removing collaborator without user_id parameter."""
-        playlist_id = 1
-
-        url = f'/api/collab/{playlist_id}/members/'
+        """Test removing collaborator without user_id returns 400."""
+        url = '/api/collab/1/members/'
         response = authenticated_client.delete(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_remove_collaborator_requires_auth(self, api_client):
         """Test removing collaborator requires authentication."""
-        playlist_id = 1
-
-        url = f'/api/collab/{playlist_id}/members/'
+        url = '/api/collab/1/members/'
         response = api_client.delete(url, {'user_id': 100})
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

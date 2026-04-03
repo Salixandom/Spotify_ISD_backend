@@ -17,10 +17,10 @@ class TestSearchView:
         response = api_client.get(url, {'q': 'Test'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'songs' in response.data
-        assert 'playlists' in response.data
-        assert 'artists' in response.data
-        assert 'albums' in response.data
+        assert 'songs' in response.data['data']
+        assert 'playlists' in response.data['data']
+        assert 'artists' in response.data['data']
+        assert 'albums' in response.data['data']
 
     def test_empty_search(self, api_client, authenticated_user):
         """Test search with empty query returns all results."""
@@ -43,8 +43,8 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'genres' in response.data
-        assert len(response.data['genres']) >= 2
+        assert 'genres' in response.data['data']
+        assert len(response.data['data']['genres']) >= 2
 
     def test_genre_detail(self, api_client, authenticated_user, test_song):
         """Test getting genre details with songs."""
@@ -52,8 +52,8 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'genre' in response.data
-        assert 'songs' in response.data
+        assert 'genre' in response.data['data']
+        assert 'songs' in response.data['data']
 
     def test_new_releases(self, api_client, authenticated_user, test_song):
         """Test getting new releases."""
@@ -61,8 +61,8 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'songs' in response.data
-        assert 'since_date' in response.data
+        assert 'songs' in response.data['data']
+        assert 'since_date' in response.data['data']
 
     def test_trending(self, api_client, authenticated_user, test_song):
         """Test getting trending songs."""
@@ -70,8 +70,8 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'songs' in response.data
-        assert 'period' in response.data
+        assert 'songs' in response.data['data']
+        assert 'period' in response.data['data']
 
     def test_similar_songs(self, api_client, authenticated_user, test_song):
         """Test getting similar songs."""
@@ -79,7 +79,7 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'similar_songs' in response.data
+        assert 'similar_songs' in response.data['data']
 
     def test_recommendations(self, api_client, authenticated_user):
         """Test personalized recommendations."""
@@ -87,8 +87,8 @@ class TestGenreDiscovery:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert 'songs' in response.data
-        assert 'recommendation_type' in response.data
+        assert 'songs' in response.data['data']
+        assert 'recommendation_type' in response.data['data']
 
 
 @pytest.mark.django_db
@@ -101,7 +101,7 @@ class TestArtistEndpoints:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) >= 1
+        assert len(response.data['data']) >= 1
 
     def test_search_artists(self, api_client, authenticated_user, test_artist):
         """Test searching artists."""
@@ -109,7 +109,7 @@ class TestArtistEndpoints:
         response = api_client.get(url, {'q': 'Test'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert any(a['name'] == 'Test Artist' for a in response.data)
+        assert any(a['name'] == 'Test Artist' for a in response.data['data'])
 
     def test_artist_detail(self, api_client, authenticated_user, test_artist):
         """Test getting artist details."""
@@ -117,8 +117,8 @@ class TestArtistEndpoints:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['id'] == test_artist.id
-        assert response.data['name'] == test_artist.name
+        assert response.data['data']['id'] == test_artist.id
+        assert response.data['data']['name'] == test_artist.name
 
 
 @pytest.mark.django_db
@@ -131,7 +131,7 @@ class TestAlbumEndpoints:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) >= 1
+        assert len(response.data['data']) >= 1
 
     def test_search_albums(self, api_client, authenticated_user, test_album):
         """Test searching albums."""
@@ -139,7 +139,7 @@ class TestAlbumEndpoints:
         response = api_client.get(url, {'q': 'Test'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert any(a['title'] == 'Test Album' for a in response.data)
+        assert any(a['name'] == 'Test Album' for a in response.data['data'])
 
     def test_album_detail(self, api_client, authenticated_user, test_album):
         """Test getting album details."""
@@ -147,8 +147,8 @@ class TestAlbumEndpoints:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['id'] == test_album.id
-        assert response.data['title'] == test_album.title
+        assert response.data['data']['id'] == test_album.id
+        assert response.data['data']['name'] == test_album.name
 
 
 @pytest.mark.django_db
@@ -161,7 +161,7 @@ class TestSongSearch:
         response = api_client.get(url, {'q': 'Test'})
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) >= 1
+        assert len(response.data['data']) >= 1
 
     def test_filter_songs_by_genre(self, api_client, authenticated_user, test_song):
         """Test filtering songs by genre."""
@@ -169,7 +169,7 @@ class TestSongSearch:
         response = api_client.get(url, {'genre': test_song.genre})
 
         assert response.status_code == status.HTTP_200_OK
-        assert all(s['genre'] == test_song.genre for s in response.data)
+        assert all(s['genre'] == test_song.genre for s in response.data['data'])
 
     def test_sort_songs(self, api_client, authenticated_user, test_song):
         """Test sorting songs."""
@@ -189,7 +189,7 @@ class TestPlaylistSearch:
         response = api_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) >= 1
+        assert len(response.data['data']) >= 1
 
     def test_filter_playlists_by_type(self, api_client, authenticated_user, test_playlist):
         """Test filtering playlists by type."""
@@ -197,4 +197,4 @@ class TestPlaylistSearch:
         response = api_client.get(url, {'type': test_playlist.playlist_type})
 
         assert response.status_code == status.HTTP_200_OK
-        assert all(p['playlist_type'] == test_playlist.playlist_type for p in response.data)
+        assert all(p['playlist_type'] == test_playlist.playlist_type for p in response.data['data'])

@@ -5,6 +5,7 @@
 # Description: Menu-driven interface for managing the microservices stack
 
 set -e
+set -o pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,7 +17,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-# Service list - 3-service architecture
+# Service list - 4-service microservices architecture + infrastructure
 SERVICES=("auth" "core" "collaboration" "playback" "db" "traefik")
 ALL_SERVICES=("auth" "core" "collaboration" "playback")
 
@@ -30,7 +31,7 @@ print_header() {
 
 print_status() {
     local service=$1
-    local status=$(docker-compose ps -q "$service" 2>/dev/null && echo "running" || echo "stopped")
+    local status=$(docker compose ps -q "$service" 2>/dev/null && echo "running" || echo "stopped")
 
     if [ "$status" = "running" ]; then
         echo -e "${GREEN}✓${NC} $service"
@@ -78,8 +79,11 @@ show_menu() {
     echo -e "  ${CYAN}18.${NC}  Database operations"
     echo -e "  ${CYAN}19.${NC}  Check database tables and row counts"
     echo -e "  ${CYAN}20.${NC}  Update & Restart from Git"
+    echo -e "  ${CYAN}21.${NC}  Run tests (all services)"
+    echo -e "  ${CYAN}22.${NC}  Run tests (specific service)"
+    echo -e "  ${CYAN}23.${NC}  Seed Data (Auth → Core → Collab)"
     echo ""
-    echo -ne "${BOLD}Enter choice [0-20]: ${NC}"
+    echo -ne "${BOLD}Enter choice [0-23]: ${NC}"
 }
 
 show_status() {
@@ -374,7 +378,7 @@ access_shell() {
                     print_header
                     echo -e "${BOLD}Accessing shell for $service (exit to return)${NC}"
                     echo ""
-                    docker compose exec "$service" bash || docker-compose exec "$service" sh
+                    docker compose exec "$service" bash || docker compose exec "$service" sh
                 fi
                 break
                 ;;
@@ -558,7 +562,7 @@ database_operations() {
             echo ""
             read -p "Enter backup filename: " backup_file
             if [ -f "$backup_file" ]; then
-                cat "$backup_file" | docker-compose exec -T db psql -U spotifyuser -d spotifydb
+                cat "$backup_file" | docker compose exec -T db psql -U spotifyuser -d spotifydb
                 echo ""
                 echo -e "${GREEN}✓ Database restored from $backup_file${NC}"
             else
@@ -586,6 +590,173 @@ database_operations() {
             return
             ;;
     esac
+}
+
+run_tests_all() {
+    print_header
+    echo -e "${BOLD}Running tests for all services...${NC}"
+    echo ""
+
+    # Create reports directory at project root (next to manage.sh)
+    local report_dir
+    report_dir="$(dirname "$0")/test_reports"
+    mkdir -p "$report_dir"
+
+    local timestamp
+    timestamp=$(date +%Y-%m-%d_%H-%M-%S)
+    local report_file="$report_dir/test_report_${timestamp}.txt"
+
+    local overall_pass=true
+
+    # Helper: run pytest for one service, echo to terminal AND append to report file
+    _run_service_tests() {
+        local svc="$1"
+        local label="$2"
+
+        echo -e "${CYAN}━━━ ${label} ━━━${NC}"
+        printf '\n=== %s ===\n' "$label" >> "$report_file"
+
+        # Capture output; tee so it also prints live
+        if docker compose exec -T "$svc" uv run pytest --tb=short -v 2>&1 \
+            | tee -a "$report_file"; then
+            echo -e "${GREEN}✓ ${label} passed${NC}"
+            printf '>>> RESULT: PASSED\n' >> "$report_file"
+        else
+            echo -e "${RED}✗ ${label} failed${NC}"
+            printf '>>> RESULT: FAILED\n' >> "$report_file"
+            overall_pass=false
+        fi
+        echo ""
+        printf '\n' >> "$report_file"
+    }
+
+    # Write report header
+    {
+        echo "========================================"
+        echo " Spotify ISD Backend — Test Report"
+        echo " Generated: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "========================================"
+        echo ""
+    } > "$report_file"
+
+    _run_service_tests "core"          "Core Service"
+    _run_service_tests "collaboration" "Collaboration Service"
+    _run_service_tests "auth"          "Auth Service"
+
+    # Write report footer
+    {
+        echo "========================================"
+        if [ "$overall_pass" = true ]; then
+            echo " OVERALL: ALL TESTS PASSED"
+        else
+            echo " OVERALL: SOME TESTS FAILED"
+        fi
+        echo "========================================"
+    } >> "$report_file"
+
+    echo ""
+    if [ "$overall_pass" = true ]; then
+        echo -e "${GREEN}${BOLD}All tests passed ✓${NC}"
+    else
+        echo -e "${RED}${BOLD}Some tests failed — see output above${NC}"
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Report saved to:${NC} $report_file"
+    read -p "Press Enter to continue..."
+}
+
+run_tests_service() {
+    print_header
+    echo -e "${BOLD}Select service to test:${NC}"
+    echo ""
+
+    select service in "${ALL_SERVICES[@]}" "Back to main menu"; do
+        case $service in
+            "Back to main menu")
+                break
+                ;;
+            *)
+                if [ -n "$service" ]; then
+                    print_header
+                    echo -e "${BOLD}Select test scope for $service:${NC}"
+                    echo ""
+                    echo -e "  ${CYAN}1.${NC}  All tests"
+                    echo -e "  ${CYAN}2.${NC}  Unit tests only"
+                    echo -e "  ${CYAN}3.${NC}  Integration tests only"
+                    echo ""
+                    echo -ne "${BOLD}Enter choice [1-3]: ${NC}"
+                    read -r scope_choice
+
+                    print_header
+                    case $scope_choice in
+                        1)
+                            echo -e "${BOLD}Running all tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest --tb=short 2>&1 || true
+                            ;;
+                        2)
+                            echo -e "${BOLD}Running unit tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest tests/unit/ --tb=short 2>&1 || true
+                            ;;
+                        3)
+                            echo -e "${BOLD}Running integration tests for $service...${NC}"
+                            echo ""
+                            docker compose exec -T "$service" uv run pytest tests/integration/ --tb=short 2>&1 || true
+                            ;;
+                        *)
+                            echo -e "${RED}Invalid choice${NC}"
+                            ;;
+                    esac
+                fi
+                read -p "Press Enter to continue..."
+                break
+                ;;
+        esac
+    done
+}
+
+seed_data() {
+    print_header
+    echo -e "${BOLD}Seed Data (Auth → Core → Collab)${NC}"
+    echo ""
+    read -p "Continue? (y/n): " confirm
+
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo ""
+        echo -e "${YELLOW}Cancelled${NC}"
+        sleep 1
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Auth service...${NC}"
+    if ! docker exec spotify_isd_backend-auth-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Auth seeding failed. Stopping sequence.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Core service...${NC}"
+    if ! docker exec spotify_isd_backend-core-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Core seeding failed. Stopping sequence.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${CYAN}Seeding Collaboration service...${NC}"
+    if ! docker exec spotify_isd_backend-collaboration-1 uv run python manage.py seed; then
+        echo -e "${RED}✗ Collaboration seeding failed.${NC}"
+        read -p "Press Enter to continue..."
+        return
+    fi
+
+    echo ""
+    echo -e "${GREEN}✓ Seeding completed in order: Auth → Core → Collab${NC}"
+    read -p "Press Enter to continue..."
 }
 
 update_restart() {
@@ -663,6 +834,9 @@ main() {
             18) database_operations ;;
             19) check_db_tables ;;
             20) update_restart ;;
+            21) run_tests_all ;;
+            22) run_tests_service ;;
+            23) seed_data ;;
             0)
                 echo ""
                 echo -e "${GREEN}Goodbye!${NC}"

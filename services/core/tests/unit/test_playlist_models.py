@@ -2,6 +2,7 @@
 Unit tests for Playlist models.
 """
 import pytest
+from django.db import IntegrityError, transaction
 from playlistapp.models import Playlist, UserPlaylistFollow, UserPlaylistLike, PlaylistSnapshot
 
 
@@ -176,3 +177,49 @@ class TestPlaylistSnapshot:
         snapshots = list(playlist.snapshots.all())
         assert snapshots[0].id == snapshot2.id  # Most recent first
         assert snapshots[1].id == snapshot1.id
+
+
+@pytest.mark.django_db
+class TestPostgreSQLConstraints:
+    """PostgreSQL-specific constraint tests.
+
+    These tests exercise behaviours that SQLite either ignores or does not
+    enforce at the database level:
+      - PositiveIntegerField maps to an integer column with a CHECK (value >= 0)
+        constraint in PostgreSQL.  QuerySet.update() bypasses ORM validators so
+        the constraint must be caught by the database itself.
+      - SELECT FOR UPDATE is a no-op in SQLite but works correctly in PostgreSQL;
+        we verify it does not raise here.
+      - unique_together violations should raise django.db.IntegrityError, not a
+        generic Exception.
+    """
+
+    def test_max_songs_rejects_negative_value(self):
+        """PositiveIntegerField CHECK constraint fires when bypassing ORM validation."""
+        playlist = Playlist.objects.create(owner_id=1, name='Constraint Test')
+        with pytest.raises(IntegrityError):
+            # .update() skips Python-level field validation — only the DB CHECK
+            # constraint stands between us and a negative value.
+            Playlist.objects.filter(id=playlist.id).update(max_songs=-1)
+
+    @pytest.mark.django_db(transaction=True)
+    def test_select_for_update_acquires_lock(self):
+        """select_for_update() must work without error — PostgreSQL supports row locking."""
+        playlist = Playlist.objects.create(owner_id=1, name='Lock Test')
+        with transaction.atomic():
+            locked = Playlist.objects.select_for_update().get(id=playlist.id)
+            assert locked.id == playlist.id
+
+    def test_unique_follow_raises_integrity_error(self):
+        """unique_together on UserPlaylistFollow raises IntegrityError, not a generic error."""
+        playlist = Playlist.objects.create(owner_id=1, name='Follow Test')
+        UserPlaylistFollow.objects.create(user_id=5, playlist=playlist)
+        with pytest.raises(IntegrityError):
+            UserPlaylistFollow.objects.create(user_id=5, playlist=playlist)
+
+    def test_unique_like_raises_integrity_error(self):
+        """unique_together on UserPlaylistLike raises IntegrityError, not a generic error."""
+        playlist = Playlist.objects.create(owner_id=1, name='Like Test')
+        UserPlaylistLike.objects.create(user_id=5, playlist=playlist)
+        with pytest.raises(IntegrityError):
+            UserPlaylistLike.objects.create(user_id=5, playlist=playlist)
