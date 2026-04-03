@@ -1,42 +1,48 @@
-# Spotify Collab - Microservices Backend
+# Spotify ISD - Microservices Backend
 
-A Spotify-like collaborative playlist application built with Django REST Framework, deployed as microservices with Docker Compose, uv, and Traefik.
+A Spotify-like collaborative playlist application with full playback capabilities, built with Django REST Framework, deployed as microservices with Docker Compose, uv, and Traefik.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Traefik Gateway                         │
-│                    (Automatic Service Discovery)                │
-└──────────┬────────────┬──────────────┬──────────────────────────┘
-           │            │              │
-           ▼            ▼              ▼
-    ┌──────────┐ ┌──────────┐ ┌──────────────┐
-    │   Auth   │ │   Core   │ │ Collaboration│
-    │  :8001   │ │  :8002   │ │    :8003     │
-    └─────┬────┘ └─────┬────┘ └────────┬─────┘
-          │            │               │
-          │            │               │
-          │      ┌─────┴─────┐         │
-          │      │playlistapp│         │
-          │      │ trackapp  │         │
-          │      │searchapp  │         │
-          │      └───────────┘         │
-          └────────────┴───────────────┘
-                     │
-                     ▼
-              ┌───────────┐
-              │ PostgreSQL│
-              │   :5432   │
-              └───────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                         Traefik Gateway                        │
+│                    (Automatic Service Discovery)               │
+└─────┬───────────┬───────────┬────────────┬─────────────────────┘
+      │           │           │            │
+      ▼           ▼           ▼            ▼
+ ┌────────┐  ┌────────┐  ┌──────────┐  ┌──────────┐
+ │  Auth  │  │  Core  │  │ Collabor │  │ Playback │
+ │ :8001  │  │ :8002  │  │  :8003   │  │  :8004   │
+ └────┬───┘  └────┬───┘  └─────┬────┘  └────┬─────┘
+      │           │            │            │
+      │      ┌────┴────┐       │            │
+      │      │ playlist│       │            │
+      │      │ track   │       │            │
+      │      │ search  │       │            │
+      │      │ history │       │            │
+      │      └────┬────┘       │            │
+      │           │            │            │
+      │           │┌───────────┴──────┐     │
+      │           ││  collab & share  │     │
+      │           │└───────────┬──────┘     │
+      │           ▼            ▼            │
+      └──────────────────┬──────────────────┘
+                         │
+                         ▼
+                  ┌──────────────┐
+                  │  PostgreSQL  │
+                  │    :5432     │
+                  └──────────────┘
 ```
 
 **Services:**
-- **Auth Service** (8001): User authentication, JWT tokens
-- **Core Service** (8002): Playlists, Tracks, and Search (merged into one Django project)
-- **Collaboration Service** (8003): Playlist collaboration features
+- **Auth Service** (8001): User authentication, JWT tokens, user management
+- **Core Service** (8002): Playlists, Tracks, Search, and Listening History
+- **Collaboration Service** (8003): Playlist collaboration and sharing features
+- **Playback Service** (8004): Audio playback, queues, and now playing features
 
 ---
 
@@ -63,13 +69,16 @@ cp services/collaboration/.env.example services/collaboration/.env
 docker-compose up -d
 
 # 4. Run migrations (first time only)
-docker exec spotify-collab_auth_1 uv run python manage.py migrate
-docker exec spotify-collab_core_1 uv run python manage.py migrate
-docker exec spotify-collab_collaboration_1 uv run python manage.py migrate
+docker exec spotify-isd-backend_auth_1 uv run python manage.py migrate
+docker exec spotify-isd-backend_core_1 uv run python manage.py migrate
+docker exec spotify-isd-backend_collaboration_1 uv run python manage.py migrate
+docker exec spotify-isd-backend_playback_1 uv run python manage.py migrate
 
 # 5. Test
 curl http://localhost/api/auth/health/
 curl http://localhost/api/core/health/
+curl http://localhost/api/collab/health/
+curl http://localhost/api/playback/health/
 ```
 
 ---
@@ -78,16 +87,17 @@ curl http://localhost/api/core/health/
 
 | Service | Gateway URL | Direct URL | Port | Apps |
 |---------|-------------|------------|------|------|
-| Auth | http://localhost/api/auth/* | http://localhost:8001 | 8001 | Authentication |
-| Core | http://localhost/api/{playlists,tracks,search}/* | http://localhost:8002 | 8002 | Playlist, Track, Search |
-| Collaboration | http://localhost/api/collab/* | http://localhost:8003 | 8003 | Collaboration features |
+| Auth | http://localhost/api/auth/* | http://localhost:8001 | 8001 | Authentication (authapp) |
+| Core | http://localhost/api/{playlists,tracks,search,history}/* | http://localhost:8002 | 8002 | Playlist, Track, Search, History |
+| Collaboration | http://localhost/api/{collab,share}/* | http://localhost:8003 | 8003 | Collaboration (collabapp, shareapp) |
+| Playback | http://localhost/api/playback/* | http://localhost:8004 | 8004 | Playback (playbackapp) |
 
 **All API endpoints remain unchanged** - the frontend doesn't need any updates!
 
 **Dashboards & Tools:**
 - Traefik Dashboard: http://localhost:8080
 - Database: localhost:5432
-- Health Checks: http://localhost/api/{auth,core,collab}/health/
+- Health Checks: http://localhost/api/{auth,core,collab,playback}/health/
 
 ---
 
@@ -133,8 +143,42 @@ docker-compose exec auth uv run python manage.py createsuperuser
 
 - **[QUICKREF.md](../QUICKREF.md)** - Developer cheat sheet
 - **[DEPLOYMENT.md](../DEPLOYMENT.md)** - Deployment guide
-- **[docs/SESSION-2026-03-26.md](SESSION-2026-03-26.md)** - Session documentation
-- **[docs/HEALTH_CHECKS.md](HEALTH_CHECKS.md)** - Health endpoint guide
+- **[DATABASE_SEEDING.md](DATABASE_SEEDING.md)** - Database seeding guide
+- **[docs/](docs/)** - Additional documentation
+
+---
+
+## 📦 Service Details
+
+### Auth Service (8001)
+- **App:** `authapp`
+- **Features:**
+  - User registration and authentication
+  - JWT token generation and validation
+  - User profile management
+  - Password reset functionality
+
+### Core Service (8002)
+- **Apps:** `playlistapp`, `trackapp`, `searchapp`, `historyapp`
+- **Features:**
+  - **Playlists:** Create, edit, delete, and manage playlists
+  - **Tracks:** Browse and manage track library
+  - **Search:** Search across playlists, tracks, and users
+  - **History:** Track recently played content
+
+### Collaboration Service (8003)
+- **Apps:** `collabapp`, `shareapp`
+- **Features:**
+  - **Collaboration:** Add/remove collaborators, manage permissions
+  - **Sharing:** Generate share links, manage playlist visibility
+
+### Playback Service (8004)
+- **App:** `playbackapp`
+- **Features:**
+  - Audio playback control
+  - Queue management
+  - Now playing tracking
+  - Playback state synchronization
 
 ---
 
@@ -179,6 +223,15 @@ docker-compose exec auth uv run python manage.py createsuperuser
 # Then run migrations
 docker-compose exec auth uv run python manage.py makemigrations
 docker-compose exec auth uv run python manage.py migrate
+
+docker-compose exec core uv run python manage.py makemigrations
+docker-compose exec core uv run python manage.py migrate
+
+docker-compose exec collaboration uv run python manage.py makemigrations
+docker-compose exec collaboration uv run python manage.py migrate
+
+docker-compose exec playback uv run python manage.py makemigrations
+docker-compose exec playback uv run python manage.py migrate
 ```
 
 ---
@@ -214,10 +267,9 @@ See [DEPLOYMENT.md](../DEPLOYMENT.md) for detailed instructions.
 ```bash
 # All services
 curl http://localhost/api/auth/health/
-curl http://localhost/api/playlists/health/
-curl http://localhost/api/tracks/health/
-curl http://localhost/api/search/health/
+curl http://localhost/api/core/health/
 curl http://localhost/api/collab/health/
+curl http://localhost/api/playback/health/
 
 # Or use the management CLI
 ./manage.sh
@@ -248,14 +300,13 @@ docker-compose ps
 
 Expected output:
 ```
-NAME                           STATUS    PORTS
-spotify-collab_auth_1         Up       0.0.0.0:8001->8001/tcp
-spotify-collab_playlist_1     Up       0.0.0.0:8002->8002/tcp
-spotify-collab_track_1        Up       0.0.0.0:8003->8003/tcp
-spotify-collab_search_1       Up       0.0.0.0:8004->8004/tcp
-spotify-collab_collaboration_1 Up       0.0.0.0:8003->8003/tcp
-spotify-collab_db_1           Up       0.0.0.0:5432->5432/tcp
-spotify-collab_traefik_1      Up       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:8080->8080/tcp
+NAME                            STATUS    PORTS
+spotify-isd-backend-auth_1      Up       0.0.0.0:8001->8001/tcp
+spotify-isd-backend-core_1      Up       0.0.0.0:8002->8002/tcp
+spotify-isd-backend-collaboration_1 Up   0.0.0.0:8003->8003/tcp
+spotify-isd-backend-playback_1  Up       0.0.0.0:8004->8004/tcp
+spotify-isd-backend-db-1        Up       0.0.0.0:5432->5432/tcp
+spotify-isd-backend-traefik-1   Up       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp, 0.0.0.0:8080->8080/tcp
 ```
 
 ---
@@ -295,11 +346,14 @@ docker-compose logs traefik
 # Access Traefik dashboard
 open http://localhost:8080
 
-# Test direct access
+# Test direct access to each service
 curl http://localhost:8001/api/auth/health/
+curl http://localhost:8002/api/core/health/
+curl http://localhost:8003/api/collab/health/
+curl http://localhost:8004/api/playback/health/
 ```
 
-See [docs/HEALTH_CHECKS.md](HEALTH_CHECKS.md) for more troubleshooting.
+See [docs/](docs/) for more troubleshooting documentation.
 
 ---
 
@@ -329,11 +383,11 @@ See [docs/HEALTH_CHECKS.md](HEALTH_CHECKS.md) for more troubleshooting.
 
 ## 👥 Team
 
-- **Developer:** Sakib + Taskeen + Raiyan + Mesbah + Arian + Mehedi
+- **Developers:** Sakib, Taskeen, Raiyan, Mesbah, Arian, Mehedi
 - **Architecture:** Microservices with Django REST Framework
 - **Deployment:** Docker Compose + Traefik
 
 ---
 
-**Last Updated:** March 26, 2026
-**Version:** 1.0.0
+**Last Updated:** April 3, 2026
+**Version:** 2.0.0

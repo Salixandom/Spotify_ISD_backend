@@ -301,7 +301,7 @@ class NewReleasesView(APIView):
     """
     GET /api/discover/new-releases/
 
-    Get recently released songs.
+    Get recently released songs and recently created playlists.
     Supports filtering by genre and pagination.
     """
     permission_classes = [permissions.IsAuthenticated]
@@ -338,14 +338,22 @@ class NewReleasesView(APIView):
         # Combine results
         songs_list = list(songs[:limit]) + list(songs_with_year)
 
+        # Get recently created playlists (within the same time period)
+        playlists = Playlist.objects.filter(
+            created_at__gte=datetime.now().date() - timedelta(days=days),
+            visibility='public',
+            is_system_generated=False  # Exclude system playlists
+        ).order_by('-created_at')[:limit]
+
         return SuccessResponse(
             data={
                 'since_date': since_date.isoformat(),
                 'days': days,
                 'songs': SongMinimalSerializer(songs_list[:limit], many=True).data,
-                'total': len(songs_list[:limit])
+                'playlists': PlaylistSerializer(playlists, many=True).data,
+                'total': len(songs_list[:limit]) + playlists.count()
             },
-            message=f'Found {len(songs_list[:limit])} new releases'
+            message=f'Found {len(songs_list[:limit])} new releases and {playlists.count()} new playlists'
         )
 
 
@@ -353,18 +361,21 @@ class TrendingView(APIView):
     """
     GET /api/discover/trending/
 
-    Get trending songs based on popularity score.
+    Get trending content based on popularity score (songs) and likes/follows (playlists).
     Supports filtering by genre and time period.
+    Returns both trending songs and trending playlists.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         from datetime import datetime, timedelta
+        from django.db.models import Count, Q
 
         genre = request.query_params.get('genre')
         limit = int(request.query_params.get('limit', 20))
         time_period = request.query_params.get('period', 'all')  # all, week, month
 
+        # Get trending songs
         songs = Song.objects.select_related('artist', 'album')
 
         # Filter by time period
@@ -387,13 +398,35 @@ class TrendingView(APIView):
 
         songs = songs[:limit]
 
+        # Get trending playlists (sorted by likes and follows count)
+        # If no playlists have likes/follows, fall back to recently created playlists
+        playlists_with_engagement = Playlist.objects.filter(
+            visibility='public',
+            is_system_generated=False  # Exclude system playlists from trending
+        ).annotate(
+            likes_count=Count('likes', distinct=True),
+            follows_count=Count('followers', distinct=True)
+        ).filter(
+            Q(likes_count__gt=0) | Q(follows_count__gt=0)
+        ).order_by('-likes_count', '-follows_count', '-created_at')
+
+        # If no trending playlists with engagement, get recent public playlists
+        if playlists_with_engagement.count() == 0:
+            playlists = Playlist.objects.filter(
+                visibility='public',
+                is_system_generated=False
+            ).order_by('-created_at')[:limit]
+        else:
+            playlists = playlists_with_engagement[:limit]
+
         return SuccessResponse(
             data={
                 'period': time_period,
                 'songs': SongMinimalSerializer(songs, many=True).data,
-                'total': songs.count()
+                'playlists': PlaylistSerializer(playlists, many=True).data,
+                'total': songs.count() + playlists.count()
             },
-            message=f'Found {songs.count()} trending songs'
+            message=f'Found {songs.count()} trending songs and {playlists.count()} trending playlists'
         )
 
 

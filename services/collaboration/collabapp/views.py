@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
+import requests
 
 from utils.responses import (
     SuccessResponse,
@@ -74,11 +75,21 @@ class JoinView(APIView):
             playlist_id=invite.playlist_id,
             user_id=request.user.id,
         )
+
+        # If this is the first collaborator, update the playlist_type to 'collaborative'
+        if created:
+            self._update_playlist_type_to_collaborative(invite.playlist_id)
+
+        # Auto-follow the playlist in core service so it appears in user's library
+        auth_header = request.headers.get('Authorization', '')
+        self._auto_follow_playlist(invite.playlist_id, request.user.id, auth_header)
+
         if not created:
             return SuccessResponse(
                 data={'already_member': True},
                 message='Already a member of this playlist'
             )
+
         return SuccessResponse(
             data=CollaboratorSerializer(collab).data,
             message='Added as collaborator successfully',
@@ -89,15 +100,57 @@ class JoinView(APIView):
         """Make cross-service call to core API to auto-follow the playlist."""
         import requests
         import os
+        import logging
+        logger = logging.getLogger(__name__)
+
         core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
         try:
-            requests.post(
+            logger.info(f"Attempting to auto-follow playlist {playlist_id} for user {user_id}")
+            response = requests.post(
                 f'{core_service_url}/api/playlists/{playlist_id}/follow/',
                 headers={'Authorization': auth_header},
                 timeout=5
             )
-        except Exception:
-            pass  # Non-critical: auto-follow failure should not block joining
+            if response.status_code == 200 or response.status_code == 201:
+                logger.info(f"Successfully auto-followed playlist {playlist_id} for user {user_id}")
+            else:
+                logger.warning(f"Failed to auto-follow playlist {playlist_id}: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"Exception during auto-follow of playlist {playlist_id}: {e}")
+            # Non-critical: auto-follow failure should not block joining
+
+    def _update_playlist_type_to_collaborative(self, playlist_id):
+        """Update playlist type to collaborative in core service."""
+        import requests
+        import os
+        import logging
+        logger = logging.getLogger(__name__)
+
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        try:
+            # Get current playlist data first to check if update is needed
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                timeout=5
+            )
+            if response.status_code == 200:
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
+                if playlist_data.get('playlist_type') != 'collaborative':
+                    # Update to collaborative
+                    update_response = requests.patch(
+                        f'{core_service_url}/api/playlists/{playlist_id}/',
+                        json={'playlist_type': 'collaborative'},
+                        timeout=5
+                    )
+                    if update_response.status_code == 200:
+                        logger.info(f"Updated playlist {playlist_id} type to collaborative")
+                    else:
+                        logger.warning(f"Failed to update playlist {playlist_id} type: {update_response.status_code}")
+        except Exception as e:
+            logger.error(f"Exception during playlist type update for {playlist_id}: {e}")
+            # Non-critical: type update failure should not block joining
 
 
 class CollaboratorListView(APIView):
@@ -139,12 +192,32 @@ class CollaboratorListView(APIView):
             Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
             return NoContentResponse()
 
-        # Owner removal: allowed when the requester's verified identity matches
-        # the owner_id supplied in the request body.
-        owner_id = request.data.get('owner_id')
-        if owner_id and str(request.user.id) == str(owner_id):
-            Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
-            return NoContentResponse()
+        # Check if requester is playlist owner via cross-service call
+        import requests
+        import os
+
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        auth_header = request.headers.get('Authorization', '')
+
+        try:
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                headers={'Authorization': auth_header},
+                timeout=5
+            )
+
+            if response.status_code == 200:
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
+                if playlist_data.get('owner_id') == request.user.id:
+                    Collaborator.objects.filter(playlist_id=playlist_id, user_id=user_id).delete()
+                    return NoContentResponse()
+
+        except requests.RequestException as e:
+            return ServiceUnavailableResponse(
+                message=f'Failed to verify ownership: {str(e)}'
+            )
 
         return ForbiddenResponse(message='Access forbidden')
 
@@ -167,11 +240,42 @@ class MyRoleView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, playlist_id):
+        # First check if user is the owner via cross-service call
+        import os
+
+        core_service_url = os.getenv('CORE_SERVICE_URL', 'http://core:8000')
+        auth_header = request.headers.get('Authorization', '')
+
+        try:
+            response = requests.get(
+                f'{core_service_url}/api/playlists/{playlist_id}/',
+                headers={'Authorization': auth_header},
+                timeout=5
+            )
+
+            if response.status_code == 200:
+                response_json = response.json()
+                # Core service wraps data in {"data": {...}} structure
+                playlist_data = response_json.get('data', {})
+
+                # Check if user is owner (for ALL playlist types, not just collaborative)
+                if playlist_data.get('owner_id') == request.user.id:
+                    return SuccessResponse(
+                        data={'role': 'owner'},
+                        message='User is the owner of this playlist'
+                    )
+        except requests.RequestException:
+            pass  # Continue to collaborator check
+
+        # Check if user is a collaborator
         try:
             Collaborator.objects.get(playlist_id=playlist_id, user_id=request.user.id)
+            return SuccessResponse(
+                data={'role': 'collaborator'},
+                message='User is a collaborator'
+            )
         except Collaborator.DoesNotExist:
-            return NotFoundResponse(message='Not a collaborator')
-        return SuccessResponse(
-            data={'role': 'collaborator'},
-            message='User is a collaborator'
-        )
+            return SuccessResponse(
+                data={'role': None},
+                message='User is neither owner nor collaborator'
+            )

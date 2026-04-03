@@ -111,6 +111,11 @@ class TrackListView(APIView):
         except Song.DoesNotExist:
             return NotFoundResponse(message='Song not found')
 
+        # Check if user can edit playlist (owner or collaborator)
+        playlist, error_response = _can_edit_playlist(playlist_id, request.user.id, request)
+        if error_response:
+            return error_response
+
         # Wrap add-track in a transaction with row locking to prevent race conditions.
         # select_for_update() locks the playlist row so two concurrent requests cannot
         # both pass the exists()/count() pre-checks and then collide on the DB constraint.
@@ -118,9 +123,6 @@ class TrackListView(APIView):
         try:
             with transaction.atomic():
                 playlist = Playlist.objects.select_for_update().get(id=playlist_id)
-
-                if playlist.owner_id != request.user.id:
-                    return ForbiddenResponse(message='Access forbidden')
 
                 if Track.objects.filter(playlist=playlist, song=song).exists():
                     return ConflictResponse(message='Song already in playlist')

@@ -10,6 +10,7 @@ dependencies = [
     "django-cors-headers==4.6.0",
     "uvicorn[standard]==0.34.0",
     "dj-database-url>=2.0.0",
+    "requests==2.32.0",
     "flake8==7.1.1",
     "pytest>=9.0.2",
     "pytest-django>=4.12.0",

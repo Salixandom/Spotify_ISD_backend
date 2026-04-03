@@ -3,5 +3,9 @@
   "tool_input_preview": "{\"file_path\":\"/Users/mesbah/Desktop/Spotify-ISD/Spotify_ISD_backend/test_reports/test_report_2026-04-02_13-25-14.txt\",\"offset\":650,\"limit\":200}",
   "error": "File content (12276 tokens) exceeds maximum allowed tokens (10000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
   "timestamp": "2026-04-02T07:30:44.165Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /home/sakib/Projects/Spotify_ISD/Spotify_ISD_frontend && npm run build\",\"description\":\"Build frontend to verify syntax fix\"}",
+  "error": "Exit code 2\n\n> client@0.0.0 build\n> tsc -b && vite build\n\nsrc/components/comments/PlaylistComments.tsx(244,6): error TS17008: JSX element 'div' has no corresponding closing tag.\nsrc/components/comments/PlaylistComments.tsx(574,20): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?\nsrc/components/comments/PlaylistComments.tsx(576,16): error TS1005: ',' expected.\nsrc/components/comments/PlaylistComments.tsx(578,12): error TS1005: '}' expected.\nsrc/components/comments/PlaylistComm...",
+  "timestamp": "2026-04-03T01:09:54.023Z",
   "retry_count": 2
 }

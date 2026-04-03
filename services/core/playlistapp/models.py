@@ -6,7 +6,7 @@ class Playlist(models.Model):
     TYPE_CHOICES = [('solo', 'Solo'), ('collaborative', 'Collaborative')]
 
     owner_id = models.IntegerField()
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, blank=True, default='')
     description = models.TextField(blank=True, default='')
     visibility = models.CharField(
         max_length=10,

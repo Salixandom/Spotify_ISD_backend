@@ -2,6 +2,8 @@
   "version": "1.0.0",
   "lastScanned": 1775132712551,
   "projectRoot": "/Users/mesbah/Desktop/Spotify-ISD/Spotify_ISD_backend",
+  "lastScanned": 1775088908182,
+  "projectRoot": "/home/sakib/Projects/Spotify_ISD/Spotify_ISD_backend",
   "techStack": {
     "languages": [],
     "frameworks": [],
@@ -40,6 +42,7 @@
       "purpose": "Documentation",
       "fileCount": 34,
       "lastAccessed": 1775132712539,
+      "lastAccessed": 1775088908149,
       "keyFiles": [
         "AGENT-GUIDE.md",
         "CONTRIBUTING.md",
@@ -53,6 +56,7 @@
       "purpose": "Build/utility scripts",
       "fileCount": 2,
       "lastAccessed": 1775132712540,
+      "lastAccessed": 1775088908150,
       "keyFiles": [
         "generate-secrets.sh",
         "seed_database.py"
@@ -63,6 +67,8 @@
       "purpose": "Business logic services",
       "fileCount": 1,
       "lastAccessed": 1775132712540,
+      "fileCount": 0,
+      "lastAccessed": 1775088908157,
       "keyFiles": []
     },
     "test_reports": {
@@ -132,8 +138,57 @@
     },
     {
       "path": "services/core/.env",
+      "path": "services/core/playlistapp/views.py",
+      "accessCount": 15,
+      "lastAccessed": 1775173480907,
+      "type": "directory"
+    },
+    {
+      "path": "services/collaboration/collabapp/views.py",
+      "accessCount": 9,
+      "lastAccessed": 1775166702645,
+      "type": "file"
+    },
+    {
+      "path": "services/core/utils/service_clients.py",
+      "accessCount": 4,
+      "lastAccessed": 1775177202259,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/authapp/signals.py",
+      "accessCount": 3,
+      "lastAccessed": 1775089079980,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/pyproject.toml",
       "accessCount": 2,
-      "lastAccessed": 1774994686510,
+      "lastAccessed": 1775089108787,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/serializers.py",
+      "accessCount": 2,
+      "lastAccessed": 1775177234418,
+      "type": "file"
+    },
+    {
+      "path": "docker-compose.yml",
+      "accessCount": 1,
+      "lastAccessed": 1775088951273,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/core/settings.py",
+      "accessCount": 1,
+      "lastAccessed": 1775088966308,
+      "type": "file"
+    },
+    {
+      "path": "services/core/playlistapp/models.py",
+      "accessCount": 1,
+      "lastAccessed": 1775088979371,
       "type": "file"
     },
     {
@@ -199,19 +254,19 @@
     {
       "path": "services/auth/.env",
       "accessCount": 1,
-      "lastAccessed": 1774994678258,
+      "lastAccessed": 1775088994035,
       "type": "file"
     },
     {
-      "path": "services/collaboration/.env",
+      "path": "services/auth/core/urls.py",
       "accessCount": 1,
-      "lastAccessed": 1774994802084,
+      "lastAccessed": 1775089026680,
       "type": "file"
     },
     {
-      "path": "services/core/searchapp/views.py",
+      "path": "services/core/core/settings.py",
       "accessCount": 1,
-      "lastAccessed": 1774995215336,
+      "lastAccessed": 1775089259960,
       "type": "file"
     },
     {
@@ -230,6 +285,15 @@
       "path": "services/core/playlistapp/models.py",
       "accessCount": 1,
       "lastAccessed": 1775055848954,
+      "path": "services/auth/authapp/serializers.py",
+      "accessCount": 1,
+      "lastAccessed": 1775089273706,
+      "type": "file"
+    },
+    {
+      "path": "services/auth/authapp/views.py",
+      "accessCount": 1,
+      "lastAccessed": 1775089273953,
       "type": "file"
     },
     {
@@ -266,6 +330,13 @@
       "path": "",
       "accessCount": 1,
       "lastAccessed": 1775133435477,
+      "lastAccessed": 1775126919069,
+      "type": "file"
+    },
+    {
+      "path": "services/core",
+      "accessCount": 1,
+      "lastAccessed": 1775177188232,
       "type": "directory"
     }
   ],
