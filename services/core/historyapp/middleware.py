@@ -37,12 +37,11 @@ class ActionLoggerMiddleware(MiddlewareMixin):
         action_id = str(uuid.uuid4())
         request.action_id = action_id
 
-        # Store request data for later
+        # Store request data for later (user_id captured in process_response after auth)
         request._action_data = {
             'action_id': action_id,
             'method': request.method,
             'path': request.path,
-            'user_id': getattr(request.user, 'id', None),
             'session_id': request.session.session_key if hasattr(request, 'session') else None,
         }
 
@@ -90,10 +89,16 @@ class ActionLoggerMiddleware(MiddlewareMixin):
         if not action_details:
             return
 
+        # Capture user_id NOW (after authentication has completed)
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            # Still no user? Skip logging
+            return
+
         # Create UserAction record
         action = UserAction.objects.create(
             action_id=action_data['action_id'],
-            user_id=action_data['user_id'],
+            user_id=user_id,
             session_id=action_data['session_id'],
             action_type=action_details['action_type'],
             entity_type=action_details['entity_type'],
