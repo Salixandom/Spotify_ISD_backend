@@ -386,30 +386,62 @@ class ArtistDetailView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get artist details",
-        description="Returns detailed information about a specific artist.",
+        description="Returns detailed information about a specific artist including their name, genre, image URL, and associated songs. This endpoint provides a comprehensive artist profile useful for artist pages, artist discovery features, and music library browsing.",
         parameters=[
             OpenApiParameter(
                 name='artist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Artist ID',
-                required=True
+                description='Unique identifier of the artist to retrieve',
+                required=True,
+                example=1
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': ArtistSerializer
+                'examples': {
+                    'artist_found': {
+                        'summary': 'Artist details retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Artist retrieved successfully',
+                            'data': {
+                                'id': 1,
+                                'name': 'The Beatles',
+                                'genre': 'Rock',
+                                'image_url': 'https://example.com/beatles.jpg',
+                                'songs': [
+                                    {
+                                        'id': 101,
+                                        'title': 'Hey Jude',
+                                        'album': 'Abbey Road',
+                                        'duration_seconds': 431,
+                                        'genre': 'Rock'
+                                    },
+                                    {
+                                        'id': 102,
+                                        'title': 'Let It Be',
+                                        'album': 'Let It Be',
+                                        'duration_seconds': 243,
+                                        'genre': 'Rock'
+                                    }
+                                ]
+                            }
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'artist_not_found': {
+                        'summary': 'Artist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Artist not found'
+                        }
+                    }
                 }
             }
         }
@@ -431,25 +463,93 @@ class AlbumListView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="List albums",
-        description="Returns a list of albums with optional search filtering.",
+        description="Returns a list of all albums in the system, alphabetically sorted by name. Each album includes the artist information, release year, and genre. You can optionally filter albums by name or artist name using the search query parameter. The search performs a case-insensitive partial match on both album name and artist name.",
         parameters=[
             OpenApiParameter(
                 name='q',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Search query to filter albums by name or artist',
-                required=False
+                description='Search query to filter albums by name or artist (case-insensitive partial match)',
+                required=False,
+                example='Abbey'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'List all albums',
+                description='Get all albums in the system',
+                value={}
+            ),
+            OpenApiExample(
+                'Search by album name',
+                description='Filter albums by name',
+                value={'q': 'Abbey'}
+            ),
+            OpenApiExample(
+                'Search by artist',
+                description='Filter albums by artist name',
+                value={'q': 'Beatles'}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'array',
-                        'items': AlbumSerializer
+                'examples': {
+                    'all_albums': {
+                        'summary': 'All albums returned',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 85 albums',
+                            'data': [
+                                {
+                                    'id': 1,
+                                    'name': 'Abbey Road',
+                                    'artist': {
+                                        'id': 1,
+                                        'name': 'The Beatles'
+                                    },
+                                    'release_year': 1969,
+                                    'genre': 'Rock'
+                                },
+                                {
+                                    'id': 2,
+                                    'name': 'Thriller',
+                                    'artist': {
+                                        'id': 45,
+                                        'name': 'Michael Jackson'
+                                    },
+                                    'release_year': 1982,
+                                    'genre': 'Pop'
+                                }
+                            ]
+                        }
+                    },
+                    'filtered_results': {
+                        'summary': 'Albums filtered by search query',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 3 albums',
+                            'data': [
+                                {
+                                    'id': 1,
+                                    'name': 'Abbey Road',
+                                    'artist': {
+                                        'id': 1,
+                                        'name': 'The Beatles'
+                                    },
+                                    'release_year': 1969,
+                                    'genre': 'Rock'
+                                }
+                            ]
+                        }
+                    },
+                    'no_results': {
+                        'summary': 'No albums match the search',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 albums',
+                            'data': []
+                        }
                     }
                 }
             }
@@ -474,30 +574,70 @@ class AlbumDetailView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get album details",
-        description="Returns detailed information about a specific album.",
+        description="Returns detailed information about a specific album including name, artist, release year, genre, and all tracks on the album. This endpoint provides a complete album profile useful for album pages, track listings, and music library browsing. The artist information is included for context.",
         parameters=[
             OpenApiParameter(
                 name='album_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Album ID',
-                required=True
+                description='Unique identifier of the album to retrieve',
+                required=True,
+                example=1
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': AlbumSerializer
+                'examples': {
+                    'album_found': {
+                        'summary': 'Album details retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Album retrieved successfully',
+                            'data': {
+                                'id': 1,
+                                'name': 'Abbey Road',
+                                'artist': {
+                                    'id': 1,
+                                    'name': 'The Beatles'
+                                },
+                                'release_year': 1969,
+                                'genre': 'Rock',
+                                'songs': [
+                                    {
+                                        'id': 101,
+                                        'title': 'Come Together',
+                                        'duration_seconds': 259,
+                                        'genre': 'Rock'
+                                    },
+                                    {
+                                        'id': 102,
+                                        'title': 'Something',
+                                        'duration_seconds': 182,
+                                        'genre': 'Rock'
+                                    },
+                                    {
+                                        'id': 103,
+                                        'title': 'Here Comes the Sun',
+                                        'duration_seconds': 185,
+                                        'genre': 'Rock'
+                                    }
+                                ]
+                            }
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'album_not_found': {
+                        'summary': 'Album ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Album not found'
+                        }
+                    }
                 }
             }
         }
@@ -519,20 +659,130 @@ class SongSearchView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Search songs",
-        description="Search for songs with optional filtering by genre, sorting, and text search.",
+        description="Advanced song search with support for text filtering (title, artist, album), genre filtering, and multiple sort options. Returns up to 20 songs per request. **Note:** Text search is case-insensitive and matches partial strings. Use this endpoint for building advanced search interfaces and music discovery features.",
         parameters=[
             OpenApiParameter(
                 name='q',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Search query (title, artist, or album)',
-                required=False
+                description='Text search query - searches song title, artist name, and album name (case-insensitive partial match)',
+                required=False,
+                example='Queen'
             ),
             OpenApiParameter(
                 name='genre',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Filter by genre',
+                description='Filter songs by genre (exact match, case-insensitive)',
+                required=False,
+                example='Rock'
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field',
+                required=False,
+                enum=['title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at'],
+                example='title'
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order (default: asc)',
+                required=False,
+                enum=['asc', 'desc'],
+                example='asc'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Search by text',
+                description='Search for songs by artist, title, or album',
+                value={'q': 'Queen'}
+            ),
+            OpenApiExample(
+                'Filter by genre',
+                description='Get songs from a specific genre',
+                value={'genre': 'Rock'}
+            ),
+            OpenApiExample(
+                'Search and sort',
+                description='Search and sort results by year',
+                value={
+                    'q': 'Beatles',
+                    'sort': 'year',
+                    'order': 'desc'
+                }
+            ),
+            OpenApiExample(
+                'List all songs',
+                description='Get all songs without filters',
+                value={}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'search_results': {
+                        'summary': 'Songs matching search query',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 15 songs',
+                            'data': [
+                                {
+                                    'id': 101,
+                                    'title': 'Bohemian Rhapsody',
+                                    'artist': 'Queen',
+                                    'album': 'A Night at the Opera',
+                                    'duration_seconds': 354,
+                                    'genre': 'Rock',
+                                    'release_year': 1975
+                                },
+                                {
+                                    'id': 102,
+                                    'title': 'We Will Rock You',
+                                    'artist': 'Queen',
+                                    'album': 'News of the World',
+                                    'duration_seconds': 121,
+                                    'genre': 'Rock',
+                                    'release_year': 1977
+                                }
+                            ]
+                        }
+                    },
+                    'filtered_by_genre': {
+                        'summary': 'Songs filtered by genre',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 25 songs',
+                            'data': [
+                                {
+                                    'id': 201,
+                                    'title': 'Sweet Child O\' Mine',
+                                    'artist': 'Guns N\' Roses',
+                                    'album': 'Appetite for Destruction',
+                                    'duration_seconds': 356,
+                                    'genre': 'Rock',
+                                    'release_year': 1987
+                                }
+                            ]
+                        }
+                    },
+                    'no_results': {
+                        'summary': 'No songs match the criteria',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 songs',
+                            'data': []
+                        }
+                    }
+                }
+            }
+        }
+    )
                 required=False
             ),
             OpenApiParameter(
@@ -602,14 +852,15 @@ class PlaylistSearchView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Search playlists",
-        description="Search for playlists with optional text search and type filtering.",
+        description="Search for playlists with support for text filtering (name and description) and playlist type filtering. Returns all public playlists plus the authenticated user's own playlists (including private ones). Results are limited to 20 playlists and sorted alphabetically by name.",
         parameters=[
             OpenApiParameter(
                 name='q',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Search query (name or description)',
-                required=False
+                description='Text search query - searches playlist name and description (case-insensitive partial match)',
+                required=False,
+                example='workout'
             ),
             OpenApiParameter(
                 name='type',
@@ -617,18 +868,91 @@ class PlaylistSearchView(APIView):
                 location=OpenApiParameter.QUERY,
                 description='Filter by playlist type',
                 required=False,
-                enum=['solo', 'collaborative']
+                enum=['solo', 'collaborative'],
+                example='collaborative'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Search by text',
+                description='Search for playlists by name or description',
+                value={'q': 'workout'}
+            ),
+            OpenApiExample(
+                'Filter by type',
+                description='Get only collaborative playlists',
+                value={'type': 'collaborative'}
+            ),
+            OpenApiExample(
+                'Search and filter',
+                description='Search within collaborative playlists',
+                value={
+                    'q': 'party',
+                    'type': 'collaborative'
+                }
+            ),
+            OpenApiExample(
+                'List all playlists',
+                description='Get all public and your own playlists',
+                value={}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'array',
-                        'items': PlaylistSerializer
+                'examples': {
+                    'search_results': {
+                        'summary': 'Playlists matching search query',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 12 playlists',
+                            'data': [
+                                {
+                                    'id': 123,
+                                    'name': 'Workout Mix',
+                                    'description': 'High energy songs for exercise',
+                                    'owner_id': 45,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'track_count': 30
+                                },
+                                {
+                                    'id': 456,
+                                    'name': 'Morning Workout',
+                                    'description': 'Start your day right',
+                                    'owner_id': 78,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'track_count': 25
+                                }
+                            ]
+                        }
+                    },
+                    'collaborative_only': {
+                        'summary': 'Collaborative playlists only',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 5 playlists',
+                            'data': [
+                                {
+                                    'id': 789,
+                                    'name': 'Team Playlist',
+                                    'description': 'Our team favorites',
+                                    'owner_id': 1,
+                                    'visibility': 'public',
+                                    'playlist_type': 'collaborative',
+                                    'track_count': 50
+                                }
+                            ]
+                        }
+                    },
+                    'no_results': {
+                        'summary': 'No playlists match the criteria',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 playlists',
+                            'data': []
+                        }
                     }
                 }
             }
@@ -670,27 +994,76 @@ class GenreListView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="List all genres",
-        description="Returns a list of all music genres with statistics. Useful for genre browsing and exploration.",
+        description="Returns a list of all music genres with statistics including song count, image URL, and description. This endpoint is ideal for building genre browsing interfaces, genre filters, and music discovery features. **Note:** If the Genre table is empty, it automatically falls back to extracting genres from the Song database.",
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'genres': {
-                                'type': 'array',
-                                'items': {
-                                    'type': 'object',
-                                    'properties': {
-                                        'name': {'type': 'string'},
-                                        'song_count': {'type': 'integer'},
-                                        'image_url': {'type': 'string'},
-                                        'description': {'type': 'string'}
+                'examples': {
+                    'from_genre_table': {
+                        'summary': 'Genres from Genre table (with full details)',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 15 genres',
+                            'data': {
+                                'genres': [
+                                    {
+                                        'name': 'Rock',
+                                        'song_count': 1250,
+                                        'image_url': 'https://example.com/rock.jpg',
+                                        'description': 'Rock music is a broad genre of popular music that originated as "rock and roll" in the United States.'
+                                    },
+                                    {
+                                        'name': 'Pop',
+                                        'song_count': 980,
+                                        'image_url': 'https://example.com/pop.jpg',
+                                        'description': 'Pop music is a genre of popular music that originated in its modern form in the mid-1950s.'
+                                    },
+                                    {
+                                        'name': 'Jazz',
+                                        'song_count': 450,
+                                        'image_url': 'https://example.com/jazz.jpg',
+                                        'description': 'Jazz is a music genre that originated in the African-American communities of New Orleans.'
                                     }
-                                }
+                                ]
+                            }
+                        }
+                    },
+                    'fallback_to_songs': {
+                        'summary': 'Genres extracted from Song database (Genre table empty)',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 8 genres',
+                            'data': {
+                                'genres': [
+                                    {
+                                        'name': 'Alternative',
+                                        'song_count': 85,
+                                        'image_url': '',
+                                        'description': 'Alternative music'
+                                    },
+                                    {
+                                        'name': 'Electronic',
+                                        'song_count': 120,
+                                        'image_url': '',
+                                        'description': 'Electronic music'
+                                    },
+                                    {
+                                        'name': 'Hip-Hop',
+                                        'song_count': 95,
+                                        'image_url': '',
+                                        'description': 'Hip-Hop music'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'no_genres': {
+                        'summary': 'No genres found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 genres',
+                            'data': {
+                                'genres': []
                             }
                         }
                     }
@@ -742,55 +1115,127 @@ class GenreDetailView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get genre details",
-        description="Returns genre information along with top songs in that genre. Supports sorting by popularity, recency, or title.",
+        description="Returns detailed information about a specific genre including description, song count, image, follower count, and top songs in that genre. **Note:** If the genre is not found in the Genre table, it falls back to calculating statistics from the Song database. Songs can be sorted by popularity, recency, or title, and you can limit the number of results.",
         parameters=[
             OpenApiParameter(
                 name='genre_name',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.PATH,
-                description='Genre name',
-                required=True
+                description='Name of the genre (case-insensitive)',
+                required=True,
+                example='Rock'
             ),
             OpenApiParameter(
                 name='sort',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Sort songs by',
+                description='Sort order for songs within the genre',
                 required=False,
-                enum=['popularity', 'recent', 'title']
+                enum=['popularity', 'recent', 'title'],
+                example='popularity'
             ),
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of songs to return',
-                required=False
+                description='Maximum number of songs to return (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get genre with popular songs',
+                description='Retrieve genre details with most popular songs',
+                value={'sort': 'popularity', 'limit': 20}
+            ),
+            OpenApiExample(
+                'Get genre with recent songs',
+                description='Retrieve genre details with recently added songs',
+                value={'sort': 'recent', 'limit': 10}
+            ),
+            OpenApiExample(
+                'Get genre with alphabetical songs',
+                description='Retrieve genre details with songs sorted by title',
+                value={'sort': 'title', 'limit': 50}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'genre': {
-                                'type': 'object',
-                                'properties': {
-                                    'name': {'type': 'string'},
-                                    'description': {'type': 'string'},
-                                    'song_count': {'type': 'integer'},
-                                    'image_url': {'type': 'string'},
-                                    'follower_count': {'type': 'integer'}
-                                }
-                            },
-                            'songs': {
-                                'type': 'array',
-                                'items': SongMinimalSerializer
-                            },
-                            'total': {'type': 'integer'}
+                'examples': {
+                    'from_genre_table': {
+                        'summary': 'Genre from Genre table (complete data)',
+                        'value': {
+                            'success': True,
+                            'message': 'Genre retrieved successfully',
+                            'data': {
+                                'genre': {
+                                    'name': 'Rock',
+                                    'description': 'Rock music is a broad genre of popular music that originated as "rock and roll" in the 1950s.',
+                                    'song_count': 1250,
+                                    'image_url': 'https://example.com/rock.jpg',
+                                    'follower_count': 45000
+                                },
+                                'songs': [
+                                    {
+                                        'id': 101,
+                                        'title': 'Bohemian Rhapsody',
+                                        'artist': 'Queen',
+                                        'album': 'A Night at the Opera',
+                                        'duration_seconds': 354,
+                                        'release_year': 1975
+                                    },
+                                    {
+                                        'id': 102,
+                                        'title': 'Stairway to Heaven',
+                                        'artist': 'Led Zeppelin',
+                                        'album': 'Led Zeppelin IV',
+                                        'duration_seconds': 482,
+                                        'release_year': 1971
+                                    }
+                                ],
+                                'total': 1250
+                            }
+                        }
+                    },
+                    'fallback_to_songs': {
+                        'summary': 'Genre from Song database (Genre table missing)',
+                        'value': {
+                            'success': True,
+                            'message': 'Genre retrieved successfully',
+                            'data': {
+                                'genre': {
+                                    'name': 'Electronic',
+                                    'description': 'Electronic music',
+                                    'song_count': 120,
+                                    'image_url': '',
+                                    'follower_count': 0
+                                },
+                                'songs': [
+                                    {
+                                        'id': 201,
+                                        'title': 'Around the World',
+                                        'artist': 'Daft Punk',
+                                        'album': 'Homework',
+                                        'duration_seconds': 427,
+                                        'release_year': 1997
+                                    }
+                                ],
+                                'total': 120
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'genre_not_found': {
+                        'summary': 'Genre does not exist in Genre table or Song database',
+                        'value': {
+                            'success': False,
+                            'message': 'Genre not found'
                         }
                     }
                 }
@@ -855,50 +1300,111 @@ class NewReleasesView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get new releases",
-        description="Returns recently released songs and newly created public playlists. Supports filtering by genre and time period.",
+        description="Returns recently released songs and newly created public playlists within a specified time window. Songs are filtered by release date and sorted by recency and popularity. Playlists are filtered by creation date. Use this endpoint for music discovery and keeping users updated with new content.",
         parameters=[
             OpenApiParameter(
                 name='days',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of days to look back (default: 90)',
-                required=False
+                description='Number of days to look back from today (default: 90, maximum: 365)',
+                required=False,
+                example=30
             ),
             OpenApiParameter(
                 name='genre',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Filter by genre',
-                required=False
+                description='Filter songs by genre (exact match, case-insensitive)',
+                required=False,
+                example='Pop'
             ),
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of results to return',
-                required=False
+                description='Maximum number of songs and playlists to return each (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Recent releases',
+                description='Get releases from the last 30 days',
+                value={'days': 30, 'limit': 20}
+            ),
+            OpenApiExample(
+                'New releases by genre',
+                description='Get recent Rock releases',
+                value={
+                    'days': 90,
+                    'genre': 'Rock',
+                    'limit': 30
+                }
+            ),
+            OpenApiExample(
+                'All time new releases',
+                description='Get all new releases (up to 1 year)',
+                value={'days': 365}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'since_date': {'type': 'string', 'format': 'date'},
-                            'days': {'type': 'integer'},
-                            'songs': {
-                                'type': 'array',
-                                'items': SongMinimalSerializer
-                            },
-                            'playlists': {
-                                'type': 'array',
-                                'items': PlaylistSerializer
-                            },
-                            'total': {'type': 'integer'}
+                'examples': {
+                    'new_releases': {
+                        'summary': 'New releases found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 45 new releases',
+                            'data': {
+                                'since_date': '2026-03-08',
+                                'days': 30,
+                                'songs': [
+                                    {
+                                        'id': 501,
+                                        'title': 'New Song',
+                                        'artist': 'Modern Artist',
+                                        'album': 'Latest Album',
+                                        'duration_seconds': 210,
+                                        'release_year': 2026
+                                    },
+                                    {
+                                        'id': 502,
+                                        'title': 'Summer Hit',
+                                        'artist': 'Pop Star',
+                                        'album': 'Summer Vibes',
+                                        'duration_seconds': 195,
+                                        'release_year': 2026
+                                    }
+                                ],
+                                'playlists': [
+                                    {
+                                        'id': 789,
+                                        'name': 'New Music April 2026',
+                                        'description': 'Fresh releases this month',
+                                        'owner_id': 1,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 40
+                                    }
+                                ],
+                                'total': 45
+                            }
+                        }
+                    },
+                    'no_recent_releases': {
+                        'summary': 'No new releases in time period',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 new releases',
+                            'data': {
+                                'since_date': '2026-01-07',
+                                'days': 90,
+                                'songs': [],
+                                'playlists': [],
+                                'total': 0
+                            }
                         }
                     }
                 }
@@ -969,50 +1475,110 @@ class TrendingView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get trending content",
-        description="Returns trending songs (by popularity) and trending playlists (by likes/follows). Supports genre and time period filtering.",
+        description="Returns currently trending songs (sorted by popularity score) and trending playlists (sorted by likes and followers). Supports filtering by genre and time period (all time, this week, this month). Use this endpoint for music discovery, homepage features, and keeping users engaged with popular content.",
         parameters=[
             OpenApiParameter(
                 name='genre',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Filter by genre',
-                required=False
+                description='Filter results by genre (exact match, case-insensitive)',
+                required=False,
+                example='Pop'
             ),
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of results to return',
-                required=False
+                description='Maximum number of songs and playlists to return each (default: 20)',
+                required=False,
+                example=20
             ),
             OpenApiParameter(
                 name='period',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Time period',
+                description='Time period for trending content',
                 required=False,
-                enum=['all', 'week', 'month']
+                enum=['all', 'week', 'month'],
+                example='week'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Trending this week',
+                description='Get most popular content from the last 7 days',
+                value={'period': 'week', 'limit': 20}
+            ),
+            OpenApiExample(
+                'Trending by genre',
+                description='Get trending Rock music',
+                value={
+                    'genre': 'Rock',
+                    'period': 'month',
+                    'limit': 30
+                }
+            ),
+            OpenApiExample(
+                'All time trending',
+                description='Get most popular content of all time',
+                value={'period': 'all', 'limit': 50}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'period': {'type': 'string'},
-                            'songs': {
-                                'type': 'array',
-                                'items': SongMinimalSerializer
-                            },
-                            'playlists': {
-                                'type': 'array',
-                                'items': PlaylistSerializer
-                            },
-                            'total': {'type': 'integer'}
+                'examples': {
+                    'trending_content': {
+                        'summary': 'Trending songs and playlists',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 40 trending items',
+                            'data': {
+                                'period': 'week',
+                                'songs': [
+                                    {
+                                        'id': 601,
+                                        'title': 'Viral Hit',
+                                        'artist': 'Trending Artist',
+                                        'album': 'Breaking Through',
+                                        'duration_seconds': 198,
+                                        'release_year': 2026
+                                    },
+                                    {
+                                        'id': 602,
+                                        'title': 'Summer Anthem',
+                                        'artist': 'Pop Sensation',
+                                        'album': 'Hot Summer',
+                                        'duration_seconds': 215,
+                                        'release_year': 2026
+                                    }
+                                ],
+                                'playlists': [
+                                    {
+                                        'id': 890,
+                                        'name': 'Viral Hits 2026',
+                                        'description': 'The songs everyone is listening to',
+                                        'owner_id': 12,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 50
+                                    }
+                                ],
+                                'total': 40
+                            }
+                        }
+                    },
+                    'no_trending': {
+                        'summary': 'No trending content found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 trending items',
+                            'data': {
+                                'period': 'week',
+                                'songs': [],
+                                'playlists': [],
+                                'total': 0
+                            }
                         }
                     }
                 }
@@ -1094,14 +1660,95 @@ class SimilarSongsView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get similar songs",
-        description="Returns songs similar to the given song, based on genre and artist. Useful for discovery and recommendations.",
+        description="Finds songs similar to the specified song based on genre and artist. Similar songs include other tracks by the same artist and tracks in the same genre. Results are ordered by similarity and limited to 20 songs. Use this endpoint for music discovery, recommendation features, and building 'more like this' experiences.",
         parameters=[
             OpenApiParameter(
                 name='song_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Song ID to find similar songs for',
-                required=True
+                description='Unique identifier of the song to find similar songs for',
+                required=True,
+                example=101
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Maximum number of similar songs to return (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get similar songs',
+                description='Find songs similar to the specified track',
+                value={'limit': 20}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'similar_songs_found': {
+                        'summary': 'Similar songs retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 15 similar songs',
+                            'data': {
+                                'song_id': 101,
+                                'similar_songs': [
+                                    {
+                                        'id': 102,
+                                        'title': 'Another Song',
+                                        'artist': 'Same Artist',
+                                        'album': 'Same Album',
+                                        'duration_seconds': 245,
+                                        'genre': 'Rock',
+                                        'release_year': 1975
+                                    },
+                                    {
+                                        'id': 205,
+                                        'title': 'Related Track',
+                                        'artist': 'Different Artist',
+                                        'album': 'Similar Style',
+                                        'duration_seconds': 198,
+                                        'genre': 'Rock',
+                                        'release_year': 1980
+                                    }
+                                ],
+                                'total': 15
+                            }
+                        }
+                    },
+                    'no_similar_songs': {
+                        'summary': 'No similar songs found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 similar songs',
+                            'data': {
+                                'song_id': 999,
+                                'similar_songs': [],
+                                'total': 0
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'song_not_found': {
+                        'summary': 'Song ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Song not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
             ),
             OpenApiParameter(
                 name='limit',
@@ -1197,33 +1844,100 @@ class RecommendationsView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Get personalized recommendations",
-        description="Returns personalized song recommendations based on user's liked and followed playlists. Analyzes genre preferences and suggests popular songs in preferred genres that the user hasn't heard yet.",
+        description="Returns personalized song recommendations based on the authenticated user's music taste. Analyzes genres from liked and followed playlists to identify preferences, then suggests popular songs in those genres that the user hasn't discovered yet. If no preference data exists, falls back to trending songs. Results are limited and sorted by relevance and popularity.",
         parameters=[
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of recommendations to return',
-                required=False
+                description='Maximum number of recommended songs to return (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get recommendations',
+                description='Retrieve personalized song suggestions',
+                value={'limit': 30}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'recommendation_type': {
-                                'type': 'string',
-                                'enum': ['personalized', 'trending']
-                            },
-                            'preferred_genres': {
-                                'type': 'array',
-                                'items': {'type': 'string'}
-                            },
+                'examples': {
+                    'personalized': {
+                        'summary': 'Personalized recommendations based on user taste',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 25 recommendations',
+                            'data': {
+                                'recommendation_type': 'personalized',
+                                'preferred_genres': ['Rock', 'Pop', 'Electronic'],
+                                'songs': [
+                                    {
+                                        'id': 701,
+                                        'title': 'New Discovery',
+                                        'artist': 'Artist You Might Like',
+                                        'album': 'Great Album',
+                                        'duration_seconds': 220,
+                                        'genre': 'Rock',
+                                        'release_year': 2025
+                                    },
+                                    {
+                                        'id': 702,
+                                        'title': 'Recommended Track',
+                                        'artist': 'Popular in Genre',
+                                        'album': 'Hits Collection',
+                                        'duration_seconds': 195,
+                                        'genre': 'Pop',
+                                        'release_year': 2026
+                                    }
+                                ],
+                                'total': 25
+                            }
+                        }
+                    },
+                    'fallback_trending': {
+                        'summary': 'No preference data, showing trending songs',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 20 recommendations',
+                            'data': {
+                                'recommendation_type': 'trending',
+                                'preferred_genres': [],
+                                'songs': [
+                                    {
+                                        'id': 801,
+                                        'title': 'Viral Song',
+                                        'artist': 'Trending Artist',
+                                        'album': 'Popular Album',
+                                        'duration_seconds': 210,
+                                        'genre': 'Pop',
+                                        'release_year': 2026
+                                    }
+                                ],
+                                'total': 20
+                            }
+                        }
+                    },
+                    'no_recommendations': {
+                        'summary': 'No songs available for recommendation',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 recommendations',
+                            'data': {
+                                'recommendation_type': 'personalized',
+                                'preferred_genres': ['Rock'],
+                                'songs': [],
+                                'total': 0
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
                             'songs': {
                                 'type': 'array',
                                 'items': SongMinimalSerializer
