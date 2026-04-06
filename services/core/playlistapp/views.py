@@ -3,6 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from django.db import connection
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 from utils.responses import (
     SuccessResponse,
     ErrorResponse,
@@ -226,6 +228,75 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         playlist = serializer.save(owner_id=self.request.user.id)
         return playlist
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="List playlists",
+        description="Returns a list of playlists with filtering and sorting options. Shows owned playlists and collaborative playlists.",
+        parameters=[
+            OpenApiParameter(
+                name='filter',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Special filter (followed, liked)',
+                required=False
+            ),
+            OpenApiParameter(
+                name='visibility',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by visibility',
+                required=False
+            ),
+            OpenApiParameter(
+                name='type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by playlist type',
+                required=False
+            ),
+            OpenApiParameter(
+                name='is_system_generated',
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description='Filter by system-generated flag',
+                required=False
+            ),
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search in name and description',
+                required=False
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field',
+                required=False
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': PlaylistSerializer
+                    }
+                }
+            }
+        }
+    )
     def list(self, request, *args, **kwargs):
         """Override to wrap response in SuccessResponse format"""
         queryset = self.get_queryset()
@@ -246,6 +317,35 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get playlist details",
+        description="Returns detailed information about a specific playlist. Requires access (owner, collaborator, or public).",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def retrieve(self, request, *args, **kwargs):
         """Override to wrap response in SuccessResponse format and check access"""
         instance = self.get_object()
@@ -258,6 +358,30 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance)
         return SuccessResponse(data=serializer.data, message='Playlist retrieved successfully')
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Create playlist",
+        description="Creates a new playlist owned by the authenticated user.",
+        request=PlaylistSerializer,
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def create(self, request, *args, **kwargs):
         """Override to wrap response in SuccessResponse format"""
         serializer = self.get_serializer(data=request.data)
@@ -265,6 +389,44 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return SuccessResponse(data=serializer.data, message='Playlist created successfully', status_code=status.HTTP_201_CREATED)
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Update playlist",
+        description="Updates a playlist. Available to owner and collaborators.",
+        request=PlaylistSerializer,
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def update(self, request, *args, **kwargs):
         playlist = self.get_object()
         if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
@@ -275,6 +437,34 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         return SuccessResponse(data=serializer.data, message='Playlist updated successfully')
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Delete playlist",
+        description="Permanently deletes a playlist. Available to owner and collaborators.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def destroy(self, request, *args, **kwargs):
         playlist = self.get_object()
         if not user_can_access_playlist(playlist, request.user.id, request.META.get('HTTP_AUTHORIZATION', '')):
@@ -296,6 +486,61 @@ class PlaylistStatsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get playlist statistics",
+        description="Returns comprehensive statistics for a playlist including track counts, genres, collaborators, and follow/like status",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {'type': 'integer'},
+                            'name': {'type': 'string'},
+                            'total_tracks': {'type': 'integer'},
+                            'total_duration_seconds': {'type': 'integer'},
+                            'total_duration_formatted': {'type': 'string'},
+                            'genres': {'type': 'array', 'items': {'type': 'string'}},
+                            'unique_artists': {'type': 'integer'},
+                            'unique_albums': {'type': 'integer'},
+                            'collaborator_count': {'type': 'integer'},
+                            'follower_count': {'type': 'integer'},
+                            'like_count': {'type': 'integer'},
+                            'is_followed': {'type': 'boolean'},
+                            'is_liked': {'type': 'boolean'}
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -398,6 +643,40 @@ class FeaturedPlaylistsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get featured playlists",
+        description="Returns featured/curated playlists ordered by track count. Supports optional genre filtering.",
+        parameters=[
+            OpenApiParameter(
+                name='genre',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by genre',
+                required=False
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results to return (default: 20)',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': PlaylistSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         # For now, return public playlists ordered by track count
         # In future, can add is_featured flag to Playlist model
@@ -434,6 +713,54 @@ class DuplicatePlaylistView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Duplicate a playlist",
+        description="Duplicate a playlist with all its tracks. Creates a new playlist with a customizable name.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID to duplicate',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'name': {'type': 'string', 'description': 'Name for the duplicate (default: "{original_name} (Copy)")'},
+                    'include_tracks': {'type': 'boolean', 'description': 'Whether to copy tracks (default: true)'},
+                    'reset_position': {'type': 'boolean', 'description': 'Reset track positions to 0,1,2... (default: false)'}
+                }
+            }
+        },
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             source = Playlist.objects.get(id=playlist_id)
@@ -492,6 +819,49 @@ class BatchDeleteView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Batch delete playlists",
+        description="Delete multiple playlists at once. Only affects playlists owned by the authenticated user.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'playlist_ids': {
+                        'type': 'array',
+                        'items': {'type': 'integer'},
+                        'description': 'List of playlist IDs to delete'
+                    }
+                },
+                'required': ['playlist_ids']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'deleted': {'type': 'integer'},
+                            'not_found': {'type': 'integer'},
+                            'not_authorized': {'type': 'integer'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def delete(self, request):
         playlist_ids = request.data.get('playlist_ids', [])
 
@@ -542,6 +912,53 @@ class BatchUpdateView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Batch update playlists",
+        description="Update multiple playlists at once with the same field values. Only affects playlists owned by the authenticated user.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'playlist_ids': {
+                        'type': 'array',
+                        'items': {'type': 'integer'},
+                        'description': 'List of playlist IDs to update'
+                    },
+                    'updates': {
+                        'type': 'object',
+                        'description': 'Field values to update (e.g., {"visibility": "private"})'
+                    }
+                },
+                'required': ['playlist_ids', 'updates']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'updated': {'type': 'integer'},
+                            'not_found': {'type': 'integer'},
+                            'not_authorized': {'type': 'integer'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def patch(self, request):
         playlist_ids = request.data.get('playlist_ids', [])
         updates = request.data.get('updates', {})
@@ -604,6 +1021,64 @@ class CoverUploadView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Upload playlist cover",
+        description="Updates the cover image for a playlist by providing a URL. Available only to playlist owner.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'cover_url': {
+                        'type': 'string',
+                        'description': 'URL of the cover image (http:// or https://)'
+                    }
+                },
+                'required': ['cover_url']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -649,6 +1124,44 @@ class CoverDeleteView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Remove playlist cover",
+        description="Removes the cover image from a playlist, reverting to the default gradient. Available only to playlist owner.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PlaylistSerializer
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -670,6 +1183,35 @@ class CoverDeleteView(APIView):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=["Health"],
+    summary="Playlist service health check",
+    description="Check if the playlist service and database are healthy",
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'},
+                'data': {
+                    'type': 'object',
+                    'properties': {
+                        'status': {'type': 'string'},
+                        'service': {'type': 'string'},
+                        'database': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        503: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'}
+            }
+        }
+    }
+)
 def health_check(request):
     try:
         with connection.cursor() as cursor:
@@ -696,6 +1238,91 @@ class UserPlaylistsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get user's playlists",
+        description="Returns playlists for a specific user. Shows all playlists for own profile, only public for other users.",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID',
+                required=True
+            ),
+            OpenApiParameter(
+                name='visibility',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by visibility',
+                required=False
+            ),
+            OpenApiParameter(
+                name='type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by playlist type',
+                required=False
+            ),
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search in name and description',
+                required=False
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field',
+                required=False
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order',
+                required=False
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results',
+                required=False
+            ),
+            OpenApiParameter(
+                name='offset',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Offset for pagination',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer'},
+                            'total': {'type': 'integer'},
+                            'limit': {'type': 'integer'},
+                            'offset': {'type': 'integer'},
+                            'playlists': {
+                                'type': 'array',
+                                'items': PlaylistSerializer
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, user_id):
         # Helper function to apply common filters to a queryset
         def apply_filters(qs):
@@ -823,6 +1450,50 @@ class PlaylistFollowView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Follow a playlist",
+        description="Follow a playlist to receive updates. Regular users can only follow public playlists.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID to follow',
+                required=True
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'followed_at': {'type': 'string', 'format': 'date-time'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -875,6 +1546,36 @@ class PlaylistFollowView(APIView):
             status_code=201
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Unfollow a playlist",
+        description="Unfollow a playlist you are currently following",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID to unfollow',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -904,6 +1605,50 @@ class PlaylistLikeView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Like a playlist",
+        description="Likes a playlist. Cannot like your own playlists, only public playlists.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID to like',
+                required=True
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'liked_at': {'type': 'string', 'format': 'date-time'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -942,6 +1687,36 @@ class PlaylistLikeView(APIView):
             status_code=201
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Unlike a playlist",
+        description="Unlikes a playlist you previously liked.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID to unlike',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)

@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
     SuccessResponse,
@@ -23,6 +25,50 @@ from django.db.models import Q
 class RecordPlayView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="Record song play",
+        description="Records a play event for a song. Used for tracking listening history.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'song_id': {'type': 'integer', 'description': 'Song ID that was played'}
+                },
+                'required': ['song_id']
+            }
+        },
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request):
         song_id = request.data.get("song_id")
         if not song_id:
@@ -45,6 +91,24 @@ class RecordPlayView(APIView):
 class RecentPlaysView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="Get recently played songs",
+        description="Returns a list of recently played songs (unique songs only, most recent first). Limited to 10 songs.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': SongSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         seen = set()
         recent = []
@@ -72,6 +136,50 @@ class UndoActionView(APIView):
     """Undo a specific action"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="Undo an action",
+        description="Undoes a previously performed action if it's still within the undo window and hasn't been undone already.",
+        parameters=[
+            OpenApiParameter(
+                name='action_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Action ID to undo',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'success': {'type': 'boolean'},
+                            'message': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, action_id):
         result = UndoRedoService.undo_action(request.user.id, action_id)
 
@@ -95,6 +203,50 @@ class RedoActionView(APIView):
     """Redo a previously undone action"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="Redo an action",
+        description="Redoes an action that was previously undone.",
+        parameters=[
+            OpenApiParameter(
+                name='action_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Action ID to redo',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'success': {'type': 'boolean'},
+                            'message': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, action_id):
         result = UndoRedoService.redo_action(request.user.id, action_id)
 
@@ -118,6 +270,39 @@ class UserActionsView(APIView):
     """List user's actions"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="List user actions",
+        description="Returns a list of user's recent actions for undo/redo functionality.",
+        parameters=[
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of actions to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'actions': {
+                                'type': 'array',
+                                'items': UserActionSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         limit = int(request.query_params.get('limit', 50))
 
@@ -139,6 +324,39 @@ class UndoableActionsView(APIView):
     """List actions that can be undone"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="List undoable actions",
+        description="Returns a list of actions that can still be undone (within undo window and not already undone).",
+        parameters=[
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of actions to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'undoable_actions': {
+                                'type': 'array',
+                                'items': UserActionSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         limit = int(request.query_params.get('limit', 50))
 
@@ -165,6 +383,21 @@ class UndoRedoConfigView(APIView):
     """Get/update undo/redo configuration"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["History"],
+        summary="Get undo/redo configuration",
+        description="Returns the current undo/redo configuration for the authenticated user.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UndoRedoConfigurationSerializer
+                }
+            }
+        }
+    )
     def get(self, request):
         config, created = UndoRedoConfiguration.objects.get_or_create(
             user_id=request.user.id
@@ -175,6 +408,22 @@ class UndoRedoConfigView(APIView):
             message='Configuration retrieved successfully'
         )
 
+    @extend_schema(
+        tags=["History"],
+        summary="Update undo/redo configuration",
+        description="Updates the undo/redo configuration for the authenticated user.",
+        request=UndoRedoConfigurationSerializer,
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UndoRedoConfigurationSerializer
+                }
+            }
+        }
+    )
     def put(self, request):
         config, created = UndoRedoConfiguration.objects.get_or_create(
             user_id=request.user.id
@@ -195,6 +444,35 @@ class UndoRedoConfigView(APIView):
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=["Health"],
+    summary="History service health check",
+    description="Check if the history service and database are healthy",
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'},
+                'data': {
+                    'type': 'object',
+                    'properties': {
+                        'status': {'type': 'string'},
+                        'service': {'type': 'string'},
+                        'database': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        503: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'}
+            }
+        }
+    }
+)
 def health_check(request):
     """Health check endpoint for monitoring and orchestration."""
     try:

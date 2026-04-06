@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
     "playbackapp",
 ]
 
@@ -54,6 +55,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # Database configuration - supports both DATABASE_URL and individual env vars
@@ -90,3 +92,18 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Upload size limits (20MB - enough for small MP3s)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
+# drf-spectacular configuration
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Spotify ISD - Playback Service",
+    "DESCRIPTION": "Music playback and media management service",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "TAGS": [
+        {"name": "Playback", "description": "Music playback controls"},
+        {"name": "Media", "description": "Audio file management"},
+        {"name": "Health", "description": "Service health checks"},
+    ],
+}
