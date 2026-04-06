@@ -699,54 +699,89 @@ class PlaylistStatsView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Get playlist statistics",
-        description="Returns comprehensive statistics for a playlist including track counts, genres, collaborators, and follow/like status",
+        description="Returns comprehensive statistics for a playlist including track counts, total duration, genre breakdown, unique artist/album counts, collaborator count, follower/like counts, and the current user's follow/like status. This endpoint is ideal for playlist overview pages, analytics dashboards, and insights features.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Unique identifier of the playlist to get statistics for',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'id': {'type': 'integer'},
-                            'name': {'type': 'string'},
-                            'total_tracks': {'type': 'integer'},
-                            'total_duration_seconds': {'type': 'integer'},
-                            'total_duration_formatted': {'type': 'string'},
-                            'genres': {'type': 'array', 'items': {'type': 'string'}},
-                            'unique_artists': {'type': 'integer'},
-                            'unique_albums': {'type': 'integer'},
-                            'collaborator_count': {'type': 'integer'},
-                            'follower_count': {'type': 'integer'},
-                            'like_count': {'type': 'integer'},
-                            'is_followed': {'type': 'boolean'},
-                            'is_liked': {'type': 'boolean'}
+                'examples': {
+                    'playlist_stats': {
+                        'summary': 'Playlist statistics retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Statistics retrieved successfully',
+                            'data': {
+                                'id': 123,
+                                'name': 'My Awesome Playlist',
+                                'total_tracks': 50,
+                                'total_duration_seconds': 10800,
+                                'total_duration_formatted': '3:00:00',
+                                'genres': ['Rock', 'Pop', 'Electronic'],
+                                'unique_artists': 35,
+                                'unique_albums': 42,
+                                'collaborator_count': 3,
+                                'follower_count': 125,
+                                'like_count': 89,
+                                'is_followed': True,
+                                'is_liked': False
+                            }
+                        }
+                    },
+                    'empty_playlist': {
+                        'summary': 'Statistics for empty playlist',
+                        'value': {
+                            'success': True,
+                            'message': 'Statistics retrieved successfully',
+                            'data': {
+                                'id': 456,
+                                'name': 'Empty Playlist',
+                                'total_tracks': 0,
+                                'total_duration_seconds': 0,
+                                'total_duration_formatted': '0:00:00',
+                                'genres': [],
+                                'unique_artists': 0,
+                                'unique_albums': 0,
+                                'collaborator_count': 0,
+                                'follower_count': 5,
+                                'like_count': 2,
+                                'is_followed': False,
+                                'is_liked': True
+                            }
                         }
                     }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'User does not have access to playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to view this playlist'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
                 }
             }
         }
@@ -856,32 +891,77 @@ class FeaturedPlaylistsView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Get featured playlists",
-        description="Returns featured/curated playlists ordered by track count. Supports optional genre filtering.",
+        description="Returns featured and curated public playlists, ordered by track count (most tracks first). These playlists are selected based on quality, popularity, and editorial curation. Supports optional genre filtering to discover featured playlists in specific music categories. Ideal for homepage discovery, browse features, and music exploration.",
         parameters=[
             OpenApiParameter(
                 name='genre',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Filter by genre',
-                required=False
+                description='Filter playlists by primary genre (optional, case-insensitive)',
+                required=False,
+                example='Rock'
             ),
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of results to return (default: 20)',
-                required=False
+                description='Maximum number of playlists to return (default: 20, maximum: 100)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get featured playlists',
+                description='Retrieve all featured playlists',
+                value={'limit': 20}
+            ),
+            OpenApiExample(
+                'Featured by genre',
+                description='Get featured Rock playlists',
+                value={'genre': 'Rock', 'limit': 30}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'array',
-                        'items': PlaylistSerializer
+                'examples': {
+                    'featured_playlists': {
+                        'summary': 'Featured playlists retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 15 featured playlists',
+                            'data': [
+                                {
+                                    'id': 101,
+                                    'name': 'Top Hits 2026',
+                                    'description': 'The biggest songs of 2026',
+                                    'owner_id': 1,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'track_count': 100,
+                                    'cover_url': 'https://example.com/covers/top-hits.jpg'
+                                },
+                                {
+                                    'id': 102,
+                                    'name': 'Rock Classics',
+                                    'description': 'Essential rock anthems',
+                                    'owner_id': 5,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'track_count': 75,
+                                    'cover_url': 'https://example.com/covers/rock.jpg'
+                                }
+                            ]
+                        }
+                    },
+                    'no_featured': {
+                        'summary': 'No featured playlists available',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 featured playlists',
+                            'data': []
+                        }
                     }
                 }
             }
@@ -926,47 +1006,109 @@ class DuplicatePlaylistView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Duplicate a playlist",
-        description="Duplicate a playlist with all its tracks. Creates a new playlist with a customizable name.",
+        description="Creates a complete copy of a playlist with all its tracks. The duplicate is always created as a private playlist owned by the authenticated user. You can customize the name, choose whether to include tracks, and reset track positions. **Note:** You can only duplicate your own playlists or public playlists. Collaborative playlists cannot be duplicated.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID to duplicate',
-                required=True
+                description='Unique identifier of the playlist to duplicate',
+                required=True,
+                example=123
             )
         ],
         request={
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'name': {'type': 'string', 'description': 'Name for the duplicate (default: "{original_name} (Copy)")'},
-                    'include_tracks': {'type': 'boolean', 'description': 'Whether to copy tracks (default: true)'},
-                    'reset_position': {'type': 'boolean', 'description': 'Reset track positions to 0,1,2... (default: false)'}
+                    'name': {
+                        'type': 'string',
+                        'description': 'Custom name for the duplicate playlist (default: "{original_name} (Copy)")',
+                        'maxLength': 255,
+                        'example': 'My Workout Mix 2'
+                    },
+                    'include_tracks': {
+                        'type': 'boolean',
+                        'description': 'Whether to copy all tracks from the original playlist (default: true)',
+                        'default': True,
+                        'example': True
+                    },
+                    'reset_position': {
+                        'type': 'boolean',
+                        'description': 'Whether to reset track positions to 0, 1, 2... instead of preserving original positions (default: false)',
+                        'default': False,
+                        'example': False
+                    }
                 }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Duplicate with defaults',
+                description='Create a duplicate with default settings (all tracks, original positions)',
+                value={}
+            ),
+            OpenApiExample(
+                'Duplicate with custom name',
+                description='Create a duplicate with a custom name',
+                value={'name': 'My Summer Playlist 2026'}
+            ),
+            OpenApiExample(
+                'Duplicate without tracks',
+                description='Create an empty playlist with same metadata',
+                value={'include_tracks': False}
+            ),
+            OpenApiExample(
+                'Duplicate and reset positions',
+                description='Create a duplicate with renumbered track positions',
+                value={'reset_position': True}
+            )
+        ],
         responses={
             201: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': PlaylistSerializer
+                'examples': {
+                    'duplicate_success': {
+                        'summary': 'Playlist duplicated successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist duplicated successfully',
+                            'data': {
+                                'id': 456,
+                                'name': 'My Awesome Playlist (Copy)',
+                                'description': 'Copied from original',
+                                'owner_id': 1,
+                                'visibility': 'private',
+                                'playlist_type': 'solo',
+                                'track_count': 25,
+                                'cover_url': 'https://example.com/cover.jpg'
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Cannot duplicate private playlist owned by another user',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to duplicate this playlist'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
                 }
             }
         }
@@ -1032,25 +1174,100 @@ class BatchDeleteView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Batch delete playlists",
-        description="Delete multiple playlists at once. Only affects playlists owned by the authenticated user.",
+        description="Delete multiple playlists at once in a single request. Only playlists owned by the authenticated user will be deleted - any playlist IDs owned by other users are silently ignored. Playlists are permanently deleted and cannot be recovered. Use with caution. Ideal for cleanup operations and bulk management.",
         request={
             'application/json': {
                 'type': 'object',
+                'required': ['playlist_ids'],
                 'properties': {
                     'playlist_ids': {
                         'type': 'array',
                         'items': {'type': 'integer'},
-                        'description': 'List of playlist IDs to delete'
+                        'description': 'List of playlist IDs to delete. Only playlists you own will be deleted.',
+                        'minItems': 1,
+                        'example': [123, 456, 789]
                     }
-                },
-                'required': ['playlist_ids']
+                }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Delete multiple playlists',
+                description='Delete multiple playlists at once',
+                value={'playlist_ids': [123, 456, 789]}
+            ),
+            OpenApiExample(
+                'Delete single playlist',
+                description='Delete one playlist (alternative to DELETE /api/playlists/{id}/)',
+                value={'playlist_ids': [123]}
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
+                'examples': {
+                    'deletion_success': {
+                        'summary': 'Playlists deleted successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Deleted 3 playlists successfully',
+                            'data': {
+                                'deleted_count': 3,
+                                'deleted_ids': [123, 456, 789],
+                                'skipped_ids': []
+                            }
+                        }
+                    },
+                    'partial_deletion': {
+                        'summary': 'Some playlists deleted, some skipped (not owned)',
+                        'value': {
+                            'success': True,
+                            'message': 'Deleted 2 of 4 playlists',
+                            'data': {
+                                'deleted_count': 2,
+                                'deleted_ids': [123, 456],
+                                'skipped_ids': [789, 999]
+                            }
+                        }
+                    },
+                    'none_deleted': {
+                        'summary': 'No playlists owned by user',
+                        'value': {
+                            'success': True,
+                            'message': 'Deleted 0 playlists',
+                            'data': {
+                                'deleted_count': 0,
+                                'deleted_ids': [],
+                                'skipped_ids': [123, 456]
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_playlist_ids': {
+                        'summary': 'playlist_ids field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'playlist_ids required',
+                            'errors': {
+                                'playlist_ids': ['This field is required.']
+                            }
+                        }
+                    },
+                    'empty_array': {
+                        'summary': 'playlist_ids array is empty',
+                        'value': {
+                            'success': False,
+                            'message': 'At least one playlist ID must be provided'
+                        }
+                    }
+                }
+            }
+        }
+    )
                     'message': {'type': 'string'},
                     'data': {
                         'type': 'object',
@@ -1125,46 +1342,147 @@ class BatchUpdateView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Batch update playlists",
-        description="Update multiple playlists at once with the same field values. Only affects playlists owned by the authenticated user.",
+        description="Update multiple playlists at once with the same field values. Only playlists owned by the authenticated user will be updated - any playlist IDs owned by other users are silently ignored. All specified playlists receive the same updates. Useful for bulk operations like making multiple playlists private or updating descriptions.",
         request={
             'application/json': {
                 'type': 'object',
+                'required': ['playlist_ids', 'updates'],
                 'properties': {
                     'playlist_ids': {
                         'type': 'array',
                         'items': {'type': 'integer'},
-                        'description': 'List of playlist IDs to update'
+                        'description': 'List of playlist IDs to update. Only playlists you own will be updated.',
+                        'minItems': 1,
+                        'example': [123, 456, 789]
                     },
                     'updates': {
                         'type': 'object',
-                        'description': 'Field values to update (e.g., {"visibility": "private"})'
+                        'description': 'Field values to apply to all specified playlists. Any valid playlist field can be updated.',
+                        'properties': {
+                            'name': {
+                                'type': 'string',
+                                'description': 'New playlist name',
+                                'maxLength': 255,
+                                'example': 'Updated Playlist Name'
+                            },
+                            'description': {
+                                'type': 'string',
+                                'description': 'New playlist description',
+                                'maxLength': 1000,
+                                'example': 'Updated description'
+                            },
+                            'visibility': {
+                                'type': 'string',
+                                'enum': ['public', 'private'],
+                                'description': 'New visibility level',
+                                'example': 'private'
+                            }
+                        }
                     }
-                },
-                'required': ['playlist_ids', 'updates']
+                }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Make playlists private',
+                description='Update visibility of multiple playlists to private',
+                value={
+                    'playlist_ids': [123, 456, 789],
+                    'updates': {'visibility': 'private'}
+                }
+            ),
+            OpenApiExample(
+                'Update descriptions',
+                description='Set the same description for multiple playlists',
+                value={
+                    'playlist_ids': [123, 456],
+                    'updates': {'description': 'My favorite songs'}
+                }
+            ),
+            OpenApiExample(
+                'Update name and visibility',
+                description='Update multiple fields at once',
+                value={
+                    'playlist_ids': [123],
+                    'updates': {
+                        'name': 'New Name',
+                        'visibility': 'public'
+                    }
+                }
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'updated': {'type': 'integer'},
-                            'not_found': {'type': 'integer'},
-                            'not_authorized': {'type': 'integer'}
+                'examples': {
+                    'update_success': {
+                        'summary': 'Playlists updated successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Updated 3 playlists',
+                            'data': {
+                                'updated': 3,
+                                'not_found': 0,
+                                'not_authorized': 0
+                            }
+                        }
+                    },
+                    'partial_update': {
+                        'summary': 'Some playlists updated, some skipped',
+                        'value': {
+                            'success': True,
+                            'message': 'Updated 2 of 4 playlists',
+                            'data': {
+                                'updated': 2,
+                                'not_found': 1,
+                                'not_authorized': 1
+                            }
+                        }
+                    },
+                    'none_updated': {
+                        'summary': 'No playlists owned by user',
+                        'value': {
+                            'success': True,
+                            'message': 'Updated 0 playlists',
+                            'data': {
+                                'updated': 0,
+                                'not_found': 2,
+                                'not_authorized': 2
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_playlist_ids': {
+                        'summary': 'playlist_ids field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'playlist_ids is required',
+                            'errors': {
+                                'playlist_ids': ['This field is required.']
+                            }
+                        }
+                    },
+                    'missing_updates': {
+                        'summary': 'updates field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'updates field is required',
+                            'errors': {
+                                'updates': ['This field is required.']
+                            }
+                        }
+                    },
+                    'empty_updates': {
+                        'summary': 'updates object is empty',
+                        'value': {
+                            'success': False,
+                            'message': 'updates field cannot be empty'
+                        }
+                    }
                 }
             }
         }
@@ -1234,57 +1552,108 @@ class CoverUploadView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Upload playlist cover",
-        description="Updates the cover image for a playlist by providing a URL. Available only to playlist owner.",
+        description="Updates or sets the cover image for a playlist by providing an image URL. Only the playlist owner can change the cover image. The URL must be a valid HTTP/HTTPS URL pointing to an image. This endpoint currently accepts URLs (e.g., from Supabase storage, CDN, or external image hosting). **Note:** Cover images are displayed in playlist cards and playlist detail pages.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Unique identifier of the playlist to update the cover for',
+                required=True,
+                example=123
             )
         ],
         request={
             'application/json': {
                 'type': 'object',
+                'required': ['cover_url'],
                 'properties': {
                     'cover_url': {
                         'type': 'string',
-                        'description': 'URL of the cover image (http:// or https://)'
+                        'description': 'URL of the cover image. Must start with http:// or https://',
+                        'maxLength': 500,
+                        'example': 'https://example.com/covers/my-playlist.jpg'
                     }
-                },
-                'required': ['cover_url']
+                }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Set cover image',
+                description='Upload a cover image for the playlist',
+                value={'cover_url': 'https://example.com/images/playlist-cover.jpg'}
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': PlaylistSerializer
+                'examples': {
+                    'cover_updated': {
+                        'summary': 'Cover image updated successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Cover image updated successfully',
+                            'data': {
+                                'id': 123,
+                                'name': 'My Playlist',
+                                'description': 'Description',
+                                'owner_id': 1,
+                                'visibility': 'public',
+                                'playlist_type': 'solo',
+                                'track_count': 25,
+                                'cover_url': 'https://example.com/images/playlist-cover.jpg'
+                            }
+                        }
+                    }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_cover_url': {
+                        'summary': 'cover_url field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'cover_url is required',
+                            'errors': {
+                                'cover_url': ['This field is required.']
+                            }
+                        }
+                    },
+                    'invalid_url': {
+                        'summary': 'URL does not start with http:// or https://',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid URL format',
+                            'errors': {
+                                'cover_url': ['URL must start with http:// or https://']
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_owner': {
+                        'summary': 'Only the playlist owner can change the cover',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to modify this playlist'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
                 }
             }
         }
@@ -1337,21 +1706,78 @@ class CoverDeleteView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Remove playlist cover",
-        description="Removes the cover image from a playlist, reverting to the default gradient. Available only to playlist owner.",
+        description="Removes the cover image from a playlist, setting the cover_url back to null/empty. The playlist will then display the default gradient placeholder. This operation is irreversible - you will need to re-upload the cover image if you want to restore it. Only the playlist owner can remove the cover image.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Unique identifier of the playlist to remove the cover from',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
+                'examples': {
+                    'cover_removed': {
+                        'summary': 'Cover image removed successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Cover image removed successfully',
+                            'data': {
+                                'id': 123,
+                                'name': 'My Playlist',
+                                'description': 'Description',
+                                'owner_id': 1,
+                                'visibility': 'public',
+                                'playlist_type': 'solo',
+                                'track_count': 25,
+                                'cover_url': None
+                            }
+                        }
+                    },
+                    'no_cover_to_remove': {
+                        'summary': 'Playlist had no cover image (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Cover image removed successfully',
+                            'data': {
+                                'id': 456,
+                                'name': 'Another Playlist',
+                                'cover_url': None
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_owner': {
+                        'summary': 'Only the playlist owner can remove the cover',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to modify this playlist'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
                     'message': {'type': 'string'},
                     'data': PlaylistSerializer
                 }
@@ -1451,22 +1877,165 @@ class UserPlaylistsView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Get user's playlists",
-        description="Returns playlists for a specific user. Shows all playlists for own profile, only public for other users.",
+        description="Returns all playlists for a specific user with privacy-aware filtering. When requesting your own playlists, returns all playlists (public, private, and collaborative). When requesting another user's playlists, only returns public playlists. Supports filtering by visibility, type, and search queries. Ideal for profile pages and user playlist browsing.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='User ID',
-                required=True
+                description='User ID to get playlists for',
+                required=True,
+                example=1
             ),
             OpenApiParameter(
                 name='visibility',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Filter by visibility',
-                required=False
+                description='Filter by visibility level (public, private, collaborative)',
+                required=False,
+                enum=['public', 'private', 'collaborative'],
+                example='public'
             ),
+            OpenApiParameter(
+                name='type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by playlist type',
+                required=False,
+                enum=['solo', 'collaborative'],
+                example='solo'
+            ),
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query for name and description',
+                required=False,
+                example='workout'
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field',
+                required=False,
+                enum=['name', 'created_at', 'updated_at', 'track_count'],
+                example='created_at'
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order (asc or desc)',
+                required=False,
+                enum=['asc', 'desc'],
+                example='desc'
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results to return',
+                required=False,
+                example=20
+            ),
+            OpenApiParameter(
+                name='offset',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results to skip for pagination',
+                required=False,
+                example=0
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get my playlists',
+                description='Retrieve all your playlists (including private)',
+                value={'user_id': 1}
+            ),
+            OpenApiExample(
+                'Get public playlists',
+                description="Retrieve another user's public playlists only",
+                value={'user_id': 5, 'visibility': 'public'}
+            ),
+            OpenApiExample(
+                'Search and filter',
+                description='Search playlists with filters',
+                value={
+                    'user_id': 1,
+                    'q': 'rock',
+                    'type': 'solo',
+                    'sort': 'name',
+                    'order': 'asc'
+                }
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'own_playlists': {
+                        'summary': 'Your playlists (all types)',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 5 playlists',
+                            'data': [
+                                {
+                                    'id': 101,
+                                    'name': 'My Private Playlist',
+                                    'description': 'Private',
+                                    'owner_id': 1,
+                                    'visibility': 'private',
+                                    'playlist_type': 'solo',
+                                    'track_count': 25
+                                },
+                                {
+                                    'id': 102,
+                                    'name': 'Team Playlist',
+                                    'description': 'Collaborative',
+                                    'owner_id': 1,
+                                    'visibility': 'public',
+                                    'playlist_type': 'collaborative',
+                                    'track_count': 50
+                                }
+                            ]
+                        }
+                    },
+                    'other_users_public': {
+                        'summary': 'Another user\'s public playlists only',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 3 playlists',
+                            'data': [
+                                {
+                                    'id': 201,
+                                    'name': 'Public Playlist',
+                                    'description': 'Public',
+                                    'owner_id': 5,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'track_count': 30
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'user_not_found': {
+                        'summary': 'User ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'User not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
             OpenApiParameter(
                 name='type',
                 type=OpenApiTypes.STR,
@@ -2082,6 +2651,102 @@ class RecommendedPlaylistsView(APIView):
     - Ranked by genre overlap score
     """
     permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get personalized playlist recommendations",
+        description="Returns personalized playlist recommendations based on your music taste. Analyzes genres from your liked and followed playlists to identify preferences, then suggests public playlists with similar genres that you haven't discovered yet. Playlists are ranked by genre overlap score - more genre matches means higher recommendation. If no preference data exists, falls back to featured playlists.",
+        parameters=[
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Maximum number of recommendations to return (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Get recommendations',
+                description='Retrieve personalized playlist suggestions',
+                value={'limit': 20}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'personalized': {
+                        'summary': 'Personalized recommendations based on taste',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 15 recommended playlists',
+                            'data': {
+                                'recommendation_type': 'personalized',
+                                'preferred_genres': ['Rock', 'Pop', 'Electronic'],
+                                'playlists': [
+                                    {
+                                        'id': 301,
+                                        'name': 'Rock Classics',
+                                        'description': 'Essential rock songs',
+                                        'owner_id': 10,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 100,
+                                        'cover_url': 'https://example.com/rock.jpg'
+                                    },
+                                    {
+                                        'id': 302,
+                                        'name': 'Pop Hits 2026',
+                                        'description': 'Current pop favorites',
+                                        'owner_id': 15,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 50
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'fallback_featured': {
+                        'summary': 'No preference data, showing featured playlists',
+                        'value': {
+                            'success': True,
+                            'message': 'Featured playlists returned',
+                            'data': {
+                                'recommendation_type': 'featured',
+                                'preferred_genres': [],
+                                'playlists': [
+                                    {
+                                        'id': 401,
+                                        'name': 'Top Hits 2026',
+                                        'description': 'Trending now',
+                                        'owner_id': 1,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 100
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'no_recommendations': {
+                        'summary': 'No matching playlists found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 recommended playlists',
+                            'data': {
+                                'recommendation_type': 'personalized',
+                                'preferred_genres': ['Jazz'],
+                                'playlists': []
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
 
     def get(self, request):
         limit = int(request.query_params.get('limit', 20))
