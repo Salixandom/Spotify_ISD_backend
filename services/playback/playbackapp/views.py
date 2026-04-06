@@ -6,6 +6,8 @@ from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db import connection
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import SuccessResponse, NotFoundResponse, ValidationErrorResponse
 from .models import AudioFile
@@ -18,6 +20,16 @@ ALLOWED_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a"]
 class AudioFileUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=['Media'],
+        summary='Upload audio file',
+        description='Uploads an audio file (MP3, WAV, OGG, M4A) to the server. Maximum file size: 20MB.',
+        request=AudioFileUploadSerializer,
+        responses={
+            201: AudioFileSerializer,
+            400: OpenApiTypes.OBJECT,
+        }
+    )
     def post(self, request):
         serializer = AudioFileUploadSerializer(data=request.data)
         if not serializer.is_valid():
@@ -49,6 +61,14 @@ class AudioFileUploadView(APIView):
 class AudioFileListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=['Media'],
+        summary='List audio files',
+        description='Retrieves a list of all uploaded audio files',
+        responses={
+            200: AudioFileSerializer(many=True),
+        }
+    )
     def get(self, request):
         files = AudioFile.objects.all()
         return SuccessResponse(
@@ -60,6 +80,21 @@ class AudioFileListView(APIView):
 class AudioFileStreamView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @extend_schema(
+        tags=['Playback'],
+        summary='Stream audio file',
+        description='Streams an audio file by ID. Returns the file with appropriate Content-Type header for browser playback.',
+        parameters=[OpenApiParameter(
+            name='pk',
+            type=int,
+            location=OpenApiParameter.PATH,
+            description='Audio file ID'
+        )],
+        responses={
+            200: OpenApiTypes.BINARY,
+            404: OpenApiTypes.OBJECT,
+        }
+    )
     def get(self, request, pk):
         try:
             audio = AudioFile.objects.get(pk=pk)
@@ -88,6 +123,15 @@ class AudioFileStreamView(APIView):
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=['Health'],
+    summary='Health check',
+    description='Checks if the playback service and database are running properly',
+    responses={
+        200: OpenApiTypes.OBJECT,
+        503: OpenApiTypes.OBJECT,
+    }
+)
 def health_check(request):
     try:
         with connection.cursor() as cursor:

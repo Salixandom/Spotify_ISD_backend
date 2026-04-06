@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
     SuccessResponse,
@@ -16,6 +18,22 @@ from .serializers import ShareLinkSerializer
 class CreateShareLinkView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=['Sharing'],
+        summary='Create share link',
+        description='Creates a shareable link for a public playlist. Only the owner or collaborators can create share links.',
+        parameters=[OpenApiParameter(
+            name='playlist_id',
+            type=int,
+            location=OpenApiParameter.PATH,
+            description='ID of the playlist to create a share link for'
+        )],
+        responses={
+            201: ShareLinkSerializer,
+            403: OpenApiTypes.OBJECT,
+            503: OpenApiTypes.OBJECT,
+        }
+    )
     def post(self, request, playlist_id):
         import requests
         import os
@@ -109,6 +127,21 @@ class CreateShareLinkView(APIView):
 class ViewShareLinkView(APIView):
     permission_classes = [permissions.AllowAny]  # Allow anyone to access shared playlists
 
+    @extend_schema(
+        tags=['Sharing'],
+        summary='View share link',
+        description='Retrieves playlist details from a share link token. Increments the usage count.',
+        parameters=[OpenApiParameter(
+            name='token',
+            type=str,
+            location=OpenApiParameter.PATH,
+            description='Share link token'
+        )],
+        responses={
+            200: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        }
+    )
     def get(self, request, token):
         import requests
         import os
@@ -200,6 +233,15 @@ class ViewShareLinkView(APIView):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=['Health'],
+    summary='Health check',
+    description='Checks if the share service and database are running properly',
+    responses={
+        200: OpenApiTypes.OBJECT,
+        503: OpenApiTypes.OBJECT,
+    }
+)
 def health_check(request):
     try:
         with connection.cursor() as cursor:
@@ -221,6 +263,21 @@ class FollowersListView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=['Sharing'],
+        summary='Get followers count',
+        description='Retrieves the number of followers for a playlist',
+        parameters=[OpenApiParameter(
+            name='playlist_id',
+            type=int,
+            location=OpenApiParameter.PATH,
+            description='ID of the playlist'
+        )],
+        responses={
+            200: OpenApiTypes.OBJECT,
+            503: OpenApiTypes.OBJECT,
+        }
+    )
     def get(self, request, playlist_id):
         """Get list of followers for a playlist from core service"""
         import requests
@@ -281,6 +338,21 @@ class IsFollowingView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=['Sharing'],
+        summary='Check follow status',
+        description='Checks if the current authenticated user is following the playlist',
+        parameters=[OpenApiParameter(
+            name='playlist_id',
+            type=int,
+            location=OpenApiParameter.PATH,
+            description='ID of the playlist'
+        )],
+        responses={
+            200: OpenApiTypes.OBJECT,
+            503: OpenApiTypes.OBJECT,
+        }
+    )
     def get(self, request, playlist_id):
         """Check if current user is following the playlist"""
         import requests
