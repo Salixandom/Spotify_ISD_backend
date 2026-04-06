@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
@@ -146,61 +146,131 @@ class TrackListView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Add track to playlist",
-        description="Adds a song to a playlist. Available to playlist owner and collaborators.",
+        description="Adds a song to a playlist. Available to playlist owner and collaborators. The track will be added to the end of the playlist. Duplicate songs are not allowed.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to add the track to',
+                required=True,
+                example=123
             )
         ],
         request={
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'song_id': {'type': 'integer', 'description': 'Song ID to add'}
+                    'song_id': {
+                        'type': 'integer',
+                        'description': 'Song ID from the search database to add to the playlist',
+                        'example': 456
+                    }
                 },
                 'required': ['song_id']
             }
         },
+        examples=[
+            OpenApiExample(
+                'Add track to playlist',
+                description='Add a song to an existing playlist',
+                value={'song_id': 456}
+            )
+        ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': TrackSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Track added successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {'type': 'integer', 'example': 789},
+                            'playlist_id': {'type': 'integer', 'example': 123},
+                            'song_id': {'type': 'integer', 'example': 456},
+                            'position': {'type': 'integer', 'example': 1},
+                            'added_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T15:30:00Z'
+                            }
+                        }
+                    }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_song_id': {
+                        'summary': 'Song ID not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'song_id required',
+                            'errors': {
+                                'song_id': ['This field is required']
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'User is not owner or collaborator',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    },
+                    'song_not_found': {
+                        'summary': 'Song does not exist in database',
+                        'value': {
+                            'success': False,
+                            'message': 'Song not found'
+                        }
+                    }
                 }
             },
             409: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'duplicate_track': {
+                        'summary': 'Song already in playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Song already in playlist'
+                        }
+                    },
+                    'playlist_limit': {
+                        'summary': 'Playlist reached maximum song limit',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist song limit reached',
+                            'errors': {
+                                'max_songs': [100]
+                            }
+                        }
+                    }
                 }
             }
         }

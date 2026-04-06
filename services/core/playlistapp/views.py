@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 from django.db import connection
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 from utils.responses import (
     SuccessResponse,
@@ -1453,43 +1453,86 @@ class PlaylistFollowView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Follow a playlist",
-        description="Follow a playlist to receive updates. Regular users can only follow public playlists.",
+        description="Follow a playlist to receive updates and show it in your library. Owners and collaborators can follow their own playlists. Regular users can only follow public playlists. Following is idempotent.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='Playlist ID to follow',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Playlist followed successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'followed_at': {'type': 'string', 'format': 'date-time'}
+                            'followed_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T14:30:00Z',
+                                'description': 'ISO 8601 timestamp when playlist was followed'
+                            }
+                        }
+                    }
+                }
+            },
+            200: {
+                'type': 'object',
+                'description': 'Returned when already following (idempotent)',
+                'properties': {
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Already following this playlist'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'followed_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-06T09:15:00Z'
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'private_playlist': {
+                        'summary': 'Cannot follow private playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Can only follow public playlists',
+                            'errors': {
+                                'operation': ['Can only follow public playlists']
+                            }
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -1549,29 +1592,42 @@ class PlaylistFollowView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Unfollow a playlist",
-        description="Unfollow a playlist you are currently following",
+        description="Stop following a playlist. The playlist will be removed from your library. Idempotent - unfollowing an already unfollowed playlist returns success without error.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='Playlist ID to unfollow',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'success': {
+                        'summary': 'Successfully unfollowed',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist unfollowed successfully'
+                        }
+                    },
+                    'not_following': {
+                        'summary': 'Playlist was not followed (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Not following this playlist'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -1608,43 +1664,96 @@ class PlaylistLikeView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Like a playlist",
-        description="Likes a playlist. Cannot like your own playlists, only public playlists.",
+        description="Likes a playlist. Cannot like your own playlists, only public playlists. Liking is idempotent - liking an already-liked playlist returns success without creating a duplicate.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='Playlist ID to like',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Playlist liked successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'liked_at': {'type': 'string', 'format': 'date-time'}
+                            'liked_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T12:30:45Z',
+                                'description': 'ISO 8601 timestamp when playlist was liked'
+                            }
+                        }
+                    }
+                }
+            },
+            200: {
+                'type': 'object',
+                'description': 'Returned when playlist was already liked (idempotent operation)',
+                'properties': {
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Already liked this playlist'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'liked_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-06T10:15:30Z'
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'own_playlist': {
+                        'summary': 'Cannot like own playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Cannot like your own playlist',
+                            'errors': {
+                                'operation': ['Cannot like your own playlist']
+                            }
+                        }
+                    },
+                    'private_playlist': {
+                        'summary': 'Cannot like private playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Can only like public playlists',
+                            'errors': {
+                                'operation': ['Can only like public playlists']
+                            }
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -1690,29 +1799,42 @@ class PlaylistLikeView(APIView):
     @extend_schema(
         tags=["Playlists"],
         summary="Unlike a playlist",
-        description="Unlikes a playlist you previously liked.",
+        description="Removes a playlist from your liked playlists. Idempotent - unliking an already unliked playlist returns success without error.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='Playlist ID to unlike',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'success': {
+                        'summary': 'Successfully unliked',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist unliked successfully'
+                        }
+                    },
+                    'not_liked': {
+                        'summary': 'Playlist was not liked (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Not liking this playlist'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }

@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
@@ -34,29 +34,128 @@ class SearchView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Unified search",
-        description="Search across songs, playlists, artists, and albums with a single query.",
+        description="Search across songs, playlists, artists, and albums with a single query. Searches song titles, artist names, album names, playlist names, and descriptions. Returns up to 20 results per category. For playlists, shows all public playlists plus your own playlists (including private).",
         parameters=[
             OpenApiParameter(
                 name='q',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Search query',
-                required=False
+                description='Search query - searches across song titles, artists, albums, and playlist names',
+                required=False,
+                example='Beatles'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Search for artist',
+                description='Search for songs, albums, and playlists by artist name',
+                value={'q': 'Beatles'}
+            ),
+            OpenApiExample(
+                'Search for song',
+                description='Search for a specific song title',
+                value={'q': 'Hey Jude'}
+            ),
+            OpenApiExample(
+                'Browse all',
+                description='Get all content without filtering (empty query)',
+                value={}
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Search completed successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'songs': {'type': 'array', 'items': SongSerializer},
-                            'playlists': {'type': 'array', 'items': PlaylistSerializer},
-                            'artists': {'type': 'array', 'items': ArtistSerializer},
-                            'albums': {'type': 'array', 'items': AlbumSerializer}
+                            'songs': {
+                                'type': 'array',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'title': {'type': 'string', 'example': 'Hey Jude'},
+                                        'artist': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer', 'example': 1},
+                                                'name': {'type': 'string', 'example': 'The Beatles'}
+                                            }
+                                        },
+                                        'album': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer', 'example': 1},
+                                                'name': {'type': 'string', 'example': 'Abbey Road'}
+                                            }
+                                        },
+                                        'duration_seconds': {'type': 'integer', 'example': 431},
+                                        'genre': {'type': 'string', 'example': 'Rock'}
+                                    }
+                                },
+                                'description': 'Up to 20 songs matching the search query'
+                            },
+                            'playlists': {
+                                'type': 'array',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 123},
+                                        'name': {'type': 'string', 'example': 'Classic Rock'},
+                                        'description': {'type': 'string', 'example': 'Best rock songs ever'},
+                                        'owner_id': {'type': 'integer', 'example': 45},
+                                        'visibility': {
+                                            'type': 'string',
+                                            'enum': ['public', 'private', 'collaborative'],
+                                            'example': 'public'
+                                        },
+                                        'track_count': {'type': 'integer', 'example': 150}
+                                    }
+                                },
+                                'description': 'Up to 20 playlists (public + your own)'
+                            },
+                            'artists': {
+                                'type': 'array',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'name': {'type': 'string', 'example': 'The Beatles'},
+                                        'genre': {'type': 'string', 'example': 'Rock'},
+                                        'image_url': {'type': 'string', 'example': 'https://example.com/beatles.jpg'}
+                                    }
+                                },
+                                'description': 'Up to 20 artists matching the search query'
+                            },
+                            'albums': {
+                                'type': 'array',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'name': {'type': 'string', 'example': 'Abbey Road'},
+                                        'artist': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer', 'example': 1},
+                                                'name': {'type': 'string', 'example': 'The Beatles'}
+                                            }
+                                        },
+                                        'release_year': {'type': 'integer', 'example': 1969},
+                                        'genre': {'type': 'string', 'example': 'Rock'}
+                                    }
+                                },
+                                'description': 'Up to 20 albums matching the search query'
+                            }
                         }
                     }
                 }
