@@ -413,39 +413,58 @@ class TrackDetailView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Delete track from playlist",
-        description="Removes a specific track from a playlist. Available only to playlist owner.",
+        description="Removes a specific track from a playlist. Only the playlist owner can delete tracks. The track is permanently removed and positions are automatically renumbered.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to remove track from',
+                required=True,
+                example=123
             ),
             OpenApiParameter(
                 name='track_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Track ID',
-                required=True
+                description='Track ID to remove',
+                required=True,
+                example=789
             )
         ],
         responses={
             204: {
-                'description': 'Track deleted successfully'
+                'description': 'Track deleted successfully (no content returned)'
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_owner': {
+                        'summary': 'Only owner can delete tracks',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'track_not_found': {
+                        'summary': 'Track does not exist in playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Track not found'
+                        }
+                    },
+                    'playlist_not_found': {
+                        'summary': 'Playlist does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
                 }
             }
         }
@@ -479,14 +498,22 @@ class TrackReorderRemoveView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Reorder and remove tracks",
-        description="Reorders tracks and removes any tracks not in the provided list. Available to owner and collaborators.",
+        description="""Reorders tracks and removes any tracks not in the provided list. Available to owner and collaborators.
+
+**How it works:**
+1. Send the final desired ordered list of track IDs
+2. Tracks not in the list are removed from the playlist
+3. Remaining tracks are renumbered to positions 0, 1, 2, ... matching the sent order
+
+**Use case:** User reorders tracks in UI and removes some tracks, then clicks save. Both operations happen atomically in a single request.""",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to reorder',
+                required=True,
+                example=123
             )
         ],
         request={
@@ -496,46 +523,109 @@ class TrackReorderRemoveView(APIView):
                     'track_ids': {
                         'type': 'array',
                         'items': {'type': 'integer'},
-                        'description': 'Final ordered list of track IDs. Tracks not in this list will be removed.'
+                        'description': 'Final ordered list of track IDs. Any tracks in the playlist that are not in this list will be removed.',
+                        'items': {
+                            'type': 'integer',
+                            'example': 5
+                        },
+                        'example': [5, 2, 8, 1, 9]
                     }
                 },
                 'required': ['track_ids']
             }
         },
+        examples=[
+            OpenApiExample(
+                'Reorder only',
+                description='Reorder all tracks without removing any',
+                value={'track_ids': [5, 2, 8, 1, 9, 3, 7]}
+            ),
+            OpenApiExample(
+                'Reorder and remove',
+                description='Reorder tracks and remove tracks 4 and 6',
+                value={'track_ids': [5, 2, 8, 1, 9, 3, 7]}
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Tracks reordered successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'status': {'type': 'string'}
+                            'status': {
+                                'type': 'string',
+                                'example': 'reordered'
+                            },
+                            'tracks_updated': {
+                                'type': 'integer',
+                                'description': 'Number of tracks whose positions were updated',
+                                'example': 7
+                            },
+                            'tracks_removed': {
+                                'type': 'integer',
+                                'description': 'Number of tracks that were removed from the playlist',
+                                'example': 2
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_field': {
+                        'summary': 'track_ids not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'track_ids required',
+                            'errors': {
+                                'track_ids': ['This field is required.']
+                            }
+                        }
+                    },
+                    'not_a_list': {
+                        'summary': 'track_ids is not a list',
+                        'value': {
+                            'success': False,
+                            'message': 'track_ids must be a list',
+                            'errors': {
+                                'track_ids': ['Must be a list']
+                            }
+                        }
+                    },
+                    'duplicates': {
+                        'summary': 'track_ids contains duplicates',
+                        'value': {
+                            'success': False,
+                            'message': 'track_ids must not contain duplicates',
+                            'errors': {
+                                'track_ids': ['Must not contain duplicates']
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized'
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -599,37 +689,82 @@ class TrackRemoveView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Batch remove tracks",
-        description="Removes multiple tracks from a playlist without reordering. Available only to playlist owner.",
+        description="Removes multiple tracks from a playlist without reordering the remaining tracks. Available only to the playlist owner. Unlike the reorder endpoint, this operation does not change the positions of remaining tracks - gaps are left where tracks were removed. Use this for bulk deletion when maintaining order is not important.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to remove tracks from',
+                required=True,
+                example=123
             )
         ],
         request={
             'application/json': {
                 'type': 'object',
+                'required': ['track_ids'],
                 'properties': {
                     'track_ids': {
                         'type': 'array',
                         'items': {'type': 'integer'},
-                        'description': 'List of track IDs to remove'
+                        'description': 'List of track IDs to remove from the playlist',
+                        'minItems': 1,
+                        'example': [5, 8, 12]
                     }
                 }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Remove single track',
+                description='Remove one track from the playlist',
+                value={'track_ids': [5]}
+            ),
+            OpenApiExample(
+                'Remove multiple tracks',
+                description='Remove multiple tracks at once',
+                value={'track_ids': [5, 8, 12, 15]}
+            )
+        ],
         responses={
             204: {
-                'description': 'Tracks removed successfully'
+                'description': 'Tracks removed successfully (no content returned)'
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_track_ids': {
+                        'summary': 'track_ids field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'track_ids': ['This field is required.']
+                            }
+                        }
+                    },
+                    'empty_array': {
+                        'summary': 'track_ids array is empty',
+                        'value': {
+                            'success': False,
+                            'message': 'At least one track ID must be provided'
+                        }
+                    }
+                }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized'
+                }
+            },
+            404: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -651,35 +786,48 @@ class PlaylistArchiveView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Archive playlist",
-        description="Archives a playlist for the authenticated user. Archived playlists are hidden from default views.",
+        description="Archives a playlist for the authenticated user. Archived playlists are hidden from default views and library listings but remain accessible. This is a user-specific action - archiving a playlist only affects your view, not other users or collaborators. Use this to declutter your library without losing access to playlists.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to archive',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'status': {'type': 'string'}
+                'examples': {
+                    'already_archived': {
+                        'summary': 'Playlist was already archived (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist archived successfully',
+                            'data': {
+                                'status': 'archived'
+                            }
+                        }
+                    },
+                    'newly_archived': {
+                        'summary': 'Playlist newly archived',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist archived successfully',
+                            'data': {
+                                'status': 'archived'
+                            }
                         }
                     }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -698,19 +846,20 @@ class PlaylistArchiveView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Unarchive playlist",
-        description="Unarchives a playlist for the authenticated user.",
+        description="Unarchives a playlist for the authenticated user, making it visible again in default views and library listings. This operation only affects your view of the playlist. If the playlist was not archived, this operation succeeds silently (idempotent).",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to unarchive',
+                required=True,
+                example=123
             )
         ],
         responses={
             204: {
-                'description': 'Playlist unarchived successfully'
+                'description': 'Playlist unarchived successfully (no content returned). This is returned whether the playlist was archived or not (idempotent operation).'
             }
         }
     )
@@ -727,42 +876,68 @@ class TrackHideView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Hide track",
-        description="Hides a track for the authenticated user. Hidden tracks won't appear in track listings.",
+        description="Hides a specific track within a playlist for the authenticated user only. Hidden tracks are excluded from track listings and playback queues for your account, but remain visible to other users and collaborators. This is useful for skipping songs you don't want to hear without deleting them from the playlist.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID containing the track',
+                required=True,
+                example=123
             ),
             OpenApiParameter(
                 name='track_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Track ID',
-                required=True
+                description='Track ID to hide',
+                required=True,
+                example=456
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'status': {'type': 'string'}
+                'examples': {
+                    'already_hidden': {
+                        'summary': 'Track was already hidden (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Track hidden successfully',
+                            'data': {
+                                'status': 'hidden'
+                            }
+                        }
+                    },
+                    'newly_hidden': {
+                        'summary': 'Track newly hidden',
+                        'value': {
+                            'success': True,
+                            'message': 'Track hidden successfully',
+                            'data': {
+                                'status': 'hidden'
+                            }
                         }
                     }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'track_not_found': {
+                        'summary': 'Track does not exist in this playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Track not found'
+                        }
+                    },
+                    'playlist_not_found': {
+                        'summary': 'Playlist does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Track not found'
+                        }
+                    }
                 }
             }
         }
@@ -781,26 +956,28 @@ class TrackHideView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Unhide track",
-        description="Unhides a track for the authenticated user.",
+        description="Unhides a previously hidden track, making it visible again in track listings and playback queues for your account. Only affects your view of the track - other users are unaffected. This operation is idempotent and succeeds even if the track was not hidden.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID containing the track',
+                required=True,
+                example=123
             ),
             OpenApiParameter(
                 name='track_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Track ID',
-                required=True
+                description='Track ID to unhide',
+                required=True,
+                example=456
             )
         ],
         responses={
             204: {
-                'description': 'Track unhidden successfully'
+                'description': 'Track unhidden successfully (no content returned). This is returned whether the track was hidden or not (idempotent operation).'
             }
         }
     )
@@ -881,48 +1058,123 @@ class TrackSortView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="Sort playlist tracks",
-        description="Sorts all tracks in a playlist by a specified field and persists the new order. Available to owner and collaborators.",
+        description="Sorts all tracks in a playlist by a specified field and persists the new order by updating the position field for all tracks. This is a permanent sort - the positions are saved to the database. Available to both owner and collaborators. **Note:** After sorting, tracks will remain in this order until manually reordered or sorted again.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to sort tracks for',
+                required=True,
+                example=123
             )
         ],
         request={
             'application/json': {
                 'type': 'object',
+                'required': ['sort_by', 'order'],
                 'properties': {
                     'sort_by': {
                         'type': 'string',
-                        'enum': ['custom', 'title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at'],
-                        'description': 'Field to sort by'
+                        'enum': ['title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at'],
+                        'description': 'Field to sort tracks by. Each field sorts alphabetically (strings) or numerically (numbers/integers).',
+                        'example': 'title'
                     },
                     'order': {
                         'type': 'string',
                         'enum': ['asc', 'desc'],
-                        'description': 'Sort order'
+                        'description': 'Sort order: asc (ascending) or desc (descending)',
+                        'example': 'asc'
                     }
                 }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Sort by title ascending',
+                description='Sort tracks alphabetically by song title A-Z',
+                value={
+                    'sort_by': 'title',
+                    'order': 'asc'
+                }
+            ),
+            OpenApiExample(
+                'Sort by artist descending',
+                description='Sort tracks alphabetically by artist name Z-A',
+                value={
+                    'sort_by': 'artist',
+                    'order': 'desc'
+                }
+            ),
+            OpenApiExample(
+                'Sort by duration descending',
+                description='Sort tracks by length, longest first',
+                value={
+                    'sort_by': 'duration',
+                    'order': 'desc'
+                }
+            ),
+            OpenApiExample(
+                'Sort by added date descending',
+                description='Sort tracks by when they were added, newest first',
+                value={
+                    'sort_by': 'added_at',
+                    'order': 'desc'
+                }
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Tracks sorted successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'sort_by': {'type': 'string'},
-                            'order': {'type': 'string'},
-                            'tracks_updated': {'type': 'integer'},
+                            'sort_by': {
+                                'type': 'string',
+                                'description': 'The field that was used for sorting',
+                                'example': 'title'
+                            },
+                            'order': {
+                                'type': 'string',
+                                'description': 'The sort order that was applied',
+                                'example': 'asc'
+                            },
+                            'tracks_updated': {
+                                'type': 'integer',
+                                'description': 'Number of tracks that were repositioned',
+                                'example': 25
+                            },
                             'tracks': {
                                 'type': 'array',
-                                'items': TrackSerializer
+                                'description': 'Array of tracks with updated positions',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer'},
+                                        'position': {'type': 'integer'},
+                                        'song': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer'},
+                                                'title': {'type': 'string'},
+                                                'artist': {'type': 'string'},
+                                                'album': {'type': 'string'},
+                                                'genre': {'type': 'string'},
+                                                'duration': {'type': 'integer'},
+                                                'year': {'type': 'integer'}
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -930,15 +1182,65 @@ class TrackSortView(APIView):
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_sort_by': {
+                        'summary': 'sort_by field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'sort_by': ['This field is required.']
+                            }
+                        }
+                    },
+                    'missing_order': {
+                        'summary': 'order field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'order': ['This field is required.']
+                            }
+                        }
+                    },
+                    'invalid_sort_by': {
+                        'summary': 'Invalid sort_by value',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'sort_by': ['"invalid" is not a valid choice. Choose from: title, artist, album, genre, duration, year, added_at']
+                            }
+                        }
+                    },
+                    'invalid_order': {
+                        'summary': 'Invalid order value',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'order': ['"invalid" is not a valid choice. Choose from: asc, desc']
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized'
+                }
+            },
+            404: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
+                }
+            }
+        }
+    )
                     'success': {'type': 'boolean'},
                     'message': {'type': 'string'}
                 }

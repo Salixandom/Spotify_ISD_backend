@@ -206,16 +206,58 @@ class BrowseView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="Browse genres",
-        description="Returns a list of all music genres for browsing.",
+        description="Returns a list of all unique music genres available in the system. Genres are extracted from all songs in the database, excluding empty values. The list is alphabetically sorted and contains only genre names (not IDs). Use this endpoint to build genre filters, browse menus, or faceted search interfaces.",
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'array',
-                        'items': {'type': 'string'}
+                'examples': {
+                    'multiple_genres': {
+                        'summary': 'Multiple genres found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 25 genres',
+                            'data': [
+                                'Alternative',
+                                'Blues',
+                                'Classical',
+                                'Country',
+                                'Dance',
+                                'Electronic',
+                                'Folk',
+                                'Hip-Hop',
+                                'Indie',
+                                'Jazz',
+                                'Metal',
+                                'Pop',
+                                'Punk',
+                                'R&B',
+                                'Reggae',
+                                'Rock',
+                                'Soul',
+                                'Techno',
+                                'World'
+                            ]
+                        }
+                    },
+                    'few_genres': {
+                        'summary': 'Limited genres in library',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 3 genres',
+                            'data': [
+                                'Pop',
+                                'Rock',
+                                'Electronic'
+                            ]
+                        }
+                    },
+                    'no_genres': {
+                        'summary': 'No songs with genre information',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 genres',
+                            'data': []
+                        }
                     }
                 }
             }
@@ -240,25 +282,88 @@ class ArtistListView(APIView):
     @extend_schema(
         tags=["Search"],
         summary="List artists",
-        description="Returns a list of artists with optional search filtering.",
+        description="Returns a list of all artists in the system, alphabetically sorted by name. You can optionally filter artists by name using the search query parameter. Each artist includes their name, genre, and image URL if available.",
         parameters=[
             OpenApiParameter(
                 name='q',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Search query to filter artists by name',
-                required=False
+                description='Search query to filter artists by name (case-insensitive partial match)',
+                required=False,
+                example='Beat'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'List all artists',
+                description='Get all artists in the system',
+                value={}
+            ),
+            OpenApiExample(
+                'Search for artist',
+                description='Filter artists by name',
+                value={'q': 'Beat'}
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'array',
-                        'items': ArtistSerializer
+                'examples': {
+                    'all_artists': {
+                        'summary': 'All artists returned',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 150 artists',
+                            'data': [
+                                {
+                                    'id': 1,
+                                    'name': 'The Beatles',
+                                    'genre': 'Rock',
+                                    'image_url': 'https://example.com/beatles.jpg'
+                                },
+                                {
+                                    'id': 2,
+                                    'name': 'Taylor Swift',
+                                    'genre': 'Pop',
+                                    'image_url': 'https://example.com/taylor.jpg'
+                                },
+                                {
+                                    'id': 3,
+                                    'name': 'Daft Punk',
+                                    'genre': 'Electronic',
+                                    'image_url': 'https://example.com/daft.jpg'
+                                }
+                            ]
+                        }
+                    },
+                    'filtered_results': {
+                        'summary': 'Artists filtered by search query',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 2 artists',
+                            'data': [
+                                {
+                                    'id': 1,
+                                    'name': 'The Beatles',
+                                    'genre': 'Rock',
+                                    'image_url': 'https://example.com/beatles.jpg'
+                                },
+                                {
+                                    'id': 45,
+                                    'name': 'Beatles Tribute',
+                                    'genre': 'Rock',
+                                    'image_url': None
+                                }
+                            ]
+                        }
+                    },
+                    'no_results': {
+                        'summary': 'No artists match the search',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 artists',
+                            'data': []
+                        }
                     }
                 }
             }

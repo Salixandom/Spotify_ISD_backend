@@ -300,43 +300,69 @@ class RedoActionView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Redo an action",
-        description="Redoes an action that was previously undone.",
+        description="Redoes an action that was previously undone. The action must have been undone first and must be within the redo window. Common redoable actions: undoing track addition, undoing playlist creation, undoing track removal.",
         parameters=[
             OpenApiParameter(
                 name='action_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Action ID to redo',
-                required=True
+                description='Action ID to redo (from your undo history)',
+                required=True,
+                example=456
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'success': {'type': 'boolean'},
-                            'message': {'type': 'string'}
+                'examples': {
+                    'redo_success': {
+                        'summary': 'Action successfully redone',
+                        'value': {
+                            'success': True,
+                            'message': 'Action redone successfully',
+                            'data': {
+                                'action_id': 456,
+                                'action_type': 'undo_add_track',
+                                'redone_at': '2026-04-07T18:40:00Z'
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_undone': {
+                        'summary': 'Action has not been undone',
+                        'value': {
+                            'success': False,
+                            'message': 'Action cannot be redone (it was never undone)',
+                            'error': 'not_undone'
+                        }
+                    },
+                    'expired': {
+                        'summary': 'Redo window expired',
+                        'value': {
+                            'success': False,
+                            'message': 'Redo window has expired (24 hours)',
+                            'error': 'expired'
+                        }
+                    },
+                    'not_redoable': {
+                        'summary': 'Action type cannot be redone',
+                        'value': {
+                            'success': False,
+                            'message': 'This action type cannot be redone',
+                            'error': 'not_redoable'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Action not found'
                 }
             }
         }
@@ -367,30 +393,79 @@ class UserActionsView(APIView):
     @extend_schema(
         tags=["History"],
         summary="List user actions",
-        description="Returns a list of user's recent actions for undo/redo functionality.",
+        description="Returns your recent actions that can be undone/redone. Actions are ordered by most recent first. This is your action history for undo/redo functionality. Common action types: add_track, remove_track, create_playlist, delete_playlist.",
         parameters=[
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of actions to return',
-                required=False
+                description='Number of actions to return (max 100, default 50)',
+                required=False,
+                example=50
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 25 recent actions'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
                             'actions': {
                                 'type': 'array',
-                                'items': UserActionSerializer
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 789},
+                                        'action_type': {
+                                            'type': 'string',
+                                            'description': 'Type of action performed',
+                                            'example': 'add_track'
+                                        },
+                                        'description': {
+                                            'type': 'string',
+                                            'description': 'Human-readable description of what was done',
+                                            'example': 'Added "Bohemian Rhapsody" to playlist'
+                                        },
+                                        'created_at': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'description': 'When the action was performed',
+                                            'example': '2026-04-07T18:00:00Z'
+                                        },
+                                        'can_undo': {
+                                            'type': 'boolean',
+                                            'description': 'Whether this action can still be undone',
+                                            'example': True
+                                        },
+                                        'undone_at': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'description': 'When the action was undone (null if not undone)',
+                                            'example': None
+                                        }
+                                    }
+                                },
+                                'description': 'List of recent actions, most recent first'
                             },
-                            'total': {'type': 'integer'}
+                            'total': {
+                                'type': 'integer',
+                                'description': 'Total number of actions in your history',
+                                'example': 25
+                            },
+                            'undoable_count': {
+                                'type': 'integer',
+                                'description': 'Number of actions that can currently be undone',
+                                'example': 18
+                            }
                         }
                     }
                 }
@@ -421,30 +496,66 @@ class UndoableActionsView(APIView):
     @extend_schema(
         tags=["History"],
         summary="List undoable actions",
-        description="Returns a list of actions that can still be undone (within undo window and not already undone).",
+        description="Returns a list of actions that can still be undone. Actions are undoable if they're within the undo window (default 24 hours) and haven't been undone already. Useful for showing undo options in the UI.",
         parameters=[
             OpenApiParameter(
                 name='limit',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description='Number of actions to return',
-                required=False
+                description='Number of actions to return (max 100, default 50)',
+                required=False,
+                example=20
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Found 18 undoable actions'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
                             'undoable_actions': {
                                 'type': 'array',
-                                'items': UserActionSerializer
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 789},
+                                        'action_type': {
+                                            'type': 'string',
+                                            'example': 'add_track'
+                                        },
+                                        'description': {
+                                            'type': 'string',
+                                            'example': 'Added "Bohemian Rhapsody" to playlist'
+                                        },
+                                        'created_at': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'example': '2026-04-07T17:00:00Z'
+                                        },
+                                        'undo_deadline': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'description': 'When this action can no longer be undone',
+                                            'example': '2026-04-08T17:00:00Z'
+                                        }
+                                    }
+                                },
+                                'description': 'Actions that can still be undone, ordered by most recent first'
                             },
-                            'total': {'type': 'integer'}
+                            'total': {
+                                'type': 'integer',
+                                'description': 'Number of actions currently undoable',
+                                'example': 18
+                            }
                         }
                     }
                 }
@@ -480,14 +591,50 @@ class UndoRedoConfigView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Get undo/redo configuration",
-        description="Returns the current undo/redo configuration for the authenticated user.",
+        description="Returns your current undo/redo configuration including undo window duration and enabled status. Configuration is auto-created on first access if not set.",
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': UndoRedoConfigurationSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Configuration retrieved successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer', 'example': 1},
+                            'undo_window_hours': {
+                                'type': 'integer',
+                                'description': 'How long after an action it can be undone (in hours)',
+                                'example': 24
+                            },
+                            'max_actions': {
+                                'type': 'integer',
+                                'description': 'Maximum number of actions stored in history',
+                                'example': 100
+                            },
+                            'is_enabled': {
+                                'type': 'boolean',
+                                'description': 'Whether undo/redo functionality is enabled for your account',
+                                'example': True
+                            },
+                            'created_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-01T10:00:00Z'
+                            },
+                            'updated_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T12:00:00Z'
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -505,15 +652,101 @@ class UndoRedoConfigView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Update undo/redo configuration",
-        description="Updates the undo/redo configuration for the authenticated user.",
-        request=UndoRedoConfigurationSerializer,
+        description="Update your undo/redo preferences. Configure how long actions can be undone (window duration) and maximum actions to store. All fields optional - update only what you want to change.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'undo_window_hours': {
+                        'type': 'integer',
+                        'description': 'How long after an action it can be undone (1-168 hours, default 24)',
+                        'minimum': 1,
+                        'maximum': 168,
+                        'example': 48
+                    },
+                    'max_actions': {
+                        'type': 'integer',
+                        'description': 'Maximum number of actions to store in history (1-1000, default 100)',
+                        'minimum': 1,
+                        'maximum': 1000,
+                        'example': 200
+                    },
+                    'is_enabled': {
+                        'type': 'boolean',
+                        'description': 'Enable or disable undo/redo functionality',
+                        'example': True
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Extend undo window',
+                description='Extend the undo window from 24 hours to 48 hours',
+                value={'undo_window_hours': 48}
+            ),
+            OpenApiExample(
+                'Increase history limit',
+                description='Store more actions in history',
+                value={'max_actions': 200}
+            ),
+            OpenApiExample(
+                'Disable undo/redo',
+                description='Turn off undo/redo functionality',
+                value={'is_enabled': False}
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': UndoRedoConfigurationSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Configuration updated successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer', 'example': 1},
+                            'undo_window_hours': {'type': 'integer', 'example': 48},
+                            'max_actions': {'type': 'integer', 'example': 200},
+                            'is_enabled': {'type': 'boolean', 'example': True},
+                            'updated_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T19:00:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'invalid_window': {
+                        'summary': 'Undo window out of range',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'undo_window_hours': ['Must be between 1 and 168 hours']
+                            }
+                        }
+                    },
+                    'invalid_max_actions': {
+                        'summary': 'Max actions out of range',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'max_actions': ['Must be between 1 and 1000']
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -6,7 +6,7 @@ from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db import connection
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import SuccessResponse, NotFoundResponse, ValidationErrorResponse
@@ -23,11 +23,153 @@ class AudioFileUploadView(APIView):
     @extend_schema(
         tags=['Media'],
         summary='Upload audio file',
-        description='Uploads an audio file (MP3, WAV, OGG, M4A) to the server. Maximum file size: 20MB.',
-        request=AudioFileUploadSerializer,
+        description='Uploads an audio file to the server for later playback. Supports MP3, WAV, OGG, and M4A formats. The file will be stored and can be streamed later using the stream endpoint. Maximum file size is 20MB. Title is required; artist, duration, and other metadata are optional.',
+        request={
+            'multipart/form-data': {
+                'type': 'object',
+                'required': ['file', 'title'],
+                'properties': {
+                    'file': {
+                        'type': 'string',
+                        'format': 'binary',
+                        'description': 'Audio file to upload (MP3, WAV, OGG, M4A)'
+                    },
+                    'title': {
+                        'type': 'string',
+                        'description': 'Title of the audio file (max 255 characters)',
+                        'maxLength': 255
+                    },
+                    'artist': {
+                        'type': 'string',
+                        'description': 'Artist name (optional, max 255 characters)',
+                        'maxLength': 255
+                    },
+                    'duration_seconds': {
+                        'type': 'integer',
+                        'description': 'Duration in seconds (optional)',
+                        'minimum': 0
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Upload MP3 with metadata',
+                description='Upload an MP3 file with title and artist',
+                value={
+                    'file': 'song.mp3',
+                    'title': 'Summer Vibes',
+                    'artist': 'Cool Artist',
+                    'duration_seconds': 210
+                },
+                media_type='multipart/form-data'
+            ),
+            OpenApiExample(
+                'Upload with minimal info',
+                description='Upload with only required fields',
+                value={
+                    'file': 'track.wav',
+                    'title': 'My Recording'
+                },
+                media_type='multipart/form-data'
+            )
+        ],
         responses={
-            201: AudioFileSerializer,
-            400: OpenApiTypes.OBJECT,
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Audio file uploaded successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {
+                                'type': 'integer',
+                                'description': 'Audio file ID',
+                                'example': 123
+                            },
+                            'title': {
+                                'type': 'string',
+                                'example': 'Summer Vibes'
+                            },
+                            'artist': {
+                                'type': 'string',
+                                'example': 'Cool Artist'
+                            },
+                            'duration_seconds': {
+                                'type': 'integer',
+                                'example': 210
+                            },
+                            'file': {
+                                'type': 'string',
+                                'description': 'Path to stored file',
+                                'example': '/media/audio/summer_vibes.mp3'
+                            },
+                            'uploaded_by_id': {
+                                'type': 'integer',
+                                'description': 'User ID who uploaded the file',
+                                'example': 1
+                            },
+                            'uploaded_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T10:00:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_file': {
+                        'summary': 'No file provided',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'file': ['This field is required.']
+                            }
+                        }
+                    },
+                    'missing_title': {
+                        'summary': 'No title provided',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'title': ['This field is required.']
+                            }
+                        }
+                    },
+                    'invalid_format': {
+                        'summary': 'Unsupported file format',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'file': ['File type .txt not allowed. Use: .mp3, .wav, .ogg, .m4a']
+                            }
+                        }
+                    },
+                    'file_too_large': {
+                        'summary': 'File exceeds 20MB limit',
+                        'value': {
+                            'success': False,
+                            'message': 'Validation failed',
+                            'errors': {
+                                'file': ['File size exceeds 20MB limit']
+                            }
+                        }
+                    }
+                }
+            }
         }
     )
     def post(self, request):
@@ -64,9 +206,65 @@ class AudioFileListView(APIView):
     @extend_schema(
         tags=['Media'],
         summary='List audio files',
-        description='Retrieves a list of all uploaded audio files',
+        description='Retrieves a list of all uploaded audio files in the system. Returns all files regardless of who uploaded them. Each file includes metadata such as title, artist, duration, file path, uploader information, and upload timestamp.',
         responses={
-            200: AudioFileSerializer(many=True),
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 3 audio files'
+                    },
+                    'data': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {
+                                    'type': 'integer',
+                                    'description': 'Audio file ID',
+                                    'example': 123
+                                },
+                                'title': {
+                                    'type': 'string',
+                                    'description': 'Title of the audio file',
+                                    'example': 'Summer Vibes'
+                                },
+                                'artist': {
+                                    'type': 'string',
+                                    'description': 'Artist name',
+                                    'example': 'Cool Artist'
+                                },
+                                'duration_seconds': {
+                                    'type': 'integer',
+                                    'description': 'Duration in seconds',
+                                    'example': 210
+                                },
+                                'file': {
+                                    'type': 'string',
+                                    'description': 'Path to stored file',
+                                    'example': '/media/audio/summer_vibes.mp3'
+                                },
+                                'uploaded_by_id': {
+                                    'type': 'integer',
+                                    'description': 'User ID who uploaded the file',
+                                    'example': 1
+                                },
+                                'uploaded_at': {
+                                    'type': 'string',
+                                    'format': 'date-time',
+                                    'description': 'When the file was uploaded',
+                                    'example': '2026-04-07T10:00:00Z'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     )
     def get(self, request):
@@ -83,16 +281,82 @@ class AudioFileStreamView(APIView):
     @extend_schema(
         tags=['Playback'],
         summary='Stream audio file',
-        description='Streams an audio file by ID. Returns the file with appropriate Content-Type header for browser playback.',
-        parameters=[OpenApiParameter(
-            name='pk',
-            type=int,
-            location=OpenApiParameter.PATH,
-            description='Audio file ID'
-        )],
+        description='Streams an audio file by its ID for playback in browsers or audio players. The endpoint returns the actual audio binary data with appropriate Content-Type headers based on the file format (audio/mpeg for MP3, audio/wav for WAV, audio/ogg for OGG, audio/mp4 for M4A). The Content-Disposition header is set to inline for direct browser playback. No authentication is required, making it accessible to public clients.',
+        parameters=[
+            OpenApiParameter(
+                name='pk',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Audio file ID to stream',
+                required=True,
+                example=123
+            )
+        ],
         responses={
-            200: OpenApiTypes.BINARY,
-            404: OpenApiTypes.OBJECT,
+            200: {
+                'description': 'Audio file binary data streamed with appropriate Content-Type header',
+                'content': {
+                    'audio/mpeg': {
+                        'schema': {
+                            'type': 'string',
+                            'format': 'binary'
+                        }
+                    },
+                    'audio/wav': {
+                        'schema': {
+                            'type': 'string',
+                            'format': 'binary'
+                        }
+                    },
+                    'audio/ogg': {
+                        'schema': {
+                            'type': 'string',
+                            'format': 'binary'
+                        }
+                    },
+                    'audio/mp4': {
+                        'schema': {
+                            'type': 'string',
+                            'format': 'binary'
+                        }
+                    }
+                },
+                'headers': {
+                    'Content-Type': {
+                        'description': 'Audio MIME type based on file format',
+                        'schema': {
+                            'type': 'string',
+                            'enum': ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4']
+                        }
+                    },
+                    'Content-Disposition': {
+                        'description': 'File disposition for inline playback',
+                        'schema': {
+                            'type': 'string',
+                            'example': 'inline; filename="Summer Vibes.mp3"'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'not_found_in_db': {
+                        'summary': 'Audio file ID not found in database',
+                        'value': {
+                            'success': False,
+                            'message': 'Audio file not found'
+                        }
+                    },
+                    'file_missing_on_disk': {
+                        'summary': 'File exists in database but not on disk',
+                        'value': {
+                            'success': False,
+                            'message': 'Audio file not found on disk'
+                        }
+                    }
+                }
+            }
         }
     )
     def get(self, request, pk):

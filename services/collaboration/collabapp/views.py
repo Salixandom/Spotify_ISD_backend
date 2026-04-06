@@ -530,26 +530,72 @@ class CollaboratorListView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="List playlist collaborators",
-        description="Returns a list of all collaborators for a specific playlist.",
+        description="Returns a list of all collaborators for a specific playlist along with their roles. Shows who has access to the playlist and what they can do based on their role (viewer, contributor, admin).",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to get collaborators for',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 5 collaborators'
+                    },
                     'data': {
                         'type': 'array',
-                        'items': CollaboratorSerializer
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {'type': 'integer', 'example': 789},
+                                'playlist_id': {'type': 'integer', 'example': 123},
+                                'user_id': {'type': 'integer', 'example': 456},
+                                'role': {
+                                    'type': 'string',
+                                    'enum': ['viewer', 'contributor', 'admin'],
+                                    'description': 'Collaborator role determining permissions',
+                                    'example': 'contributor'
+                                },
+                                'joined_at': {
+                                    'type': 'string',
+                                    'format': 'date-time',
+                                    'description': 'When this user became a collaborator',
+                                    'example': '2026-04-07T15:30:00Z'
+                                },
+                                'invited_by': {
+                                    'type': 'integer',
+                                    'description': 'User ID who invited this collaborator',
+                                    'example': 1
+                                }
+                            }
+                        },
+                        'description': 'List of collaborators with their roles'
                     }
+                }
+            },
+            403: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized to view collaborators'
+                }
+            },
+            404: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -564,14 +610,15 @@ class CollaboratorListView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="Remove collaborator",
-        description="Removes a collaborator from a playlist. Users can always remove themselves. Playlist owners can remove any collaborator.",
+        description="Removes a collaborator from a playlist. **Self-removal:** Users can always remove themselves without any additional parameters. **Owner removal:** Playlist owners can remove any collaborator by providing the owner_id in the request body.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to remove collaborator from',
+                required=True,
+                example=123
             )
         ],
         request={
@@ -580,39 +627,77 @@ class CollaboratorListView(APIView):
                 'properties': {
                     'user_id': {
                         'type': 'integer',
-                        'description': 'ID of the collaborator to remove'
+                        'description': 'Required when owner is removing someone else. ID of the collaborator to remove.',
+                        'example': 456
                     },
                     'owner_id': {
                         'type': 'integer',
-                        'description': 'ID of the playlist owner (for owner verification)'
+                        'description': 'Required when owner is removing someone else. ID of the playlist owner (your user ID) to verify ownership.',
+                        'example': 1
                     }
                 }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Remove yourself (self-removal)',
+                description='Remove yourself from a collaborative playlist',
+                value={'user_id': 456}
+            ),
+            OpenApiExample(
+                'Remove as owner',
+                description='Owner removing a collaborator (must provide both user_id and owner_id)',
+                value={
+                    'user_id': 789,
+                    'owner_id': 1
+                }
+            )
+        ],
         responses={
             204: {
-                'description': 'Collaborator removed successfully'
+                'description': 'Collaborator removed successfully (no content returned)'
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_user_id': {
+                        'summary': 'user_id not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'user_id required',
+                            'errors': {
+                                'user_id': ['This field is required.']
+                            }
+                        }
+                    },
+                    'not_owner': {
+                        'summary': 'Requester is not the owner',
+                        'value': {
+                            'success': False,
+                            'message': 'Only the playlist owner can remove other collaborators'
+                        }
+                    },
+                    'owner_mismatch': {
+                        'summary': 'owner_id does not match actual owner',
+                        'value': {
+                            'success': False,
+                            'message': 'Owner ID does not match playlist owner'
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized to remove collaborators'
                 }
             },
-            503: {
+            404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Playlist or collaborator not found'
                 }
             }
         }
@@ -796,14 +881,15 @@ class LeavePlaylistView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="Leave collaborative playlist",
-        description="Leave a collaborative playlist. For collaborators: simply removes them. For owners: must transfer ownership to another collaborator first.",
+        description="Leave a collaborative playlist. **For collaborators:** Simply removes you from the playlist. **For owners:** Must transfer ownership to another collaborator first by providing new_owner_id. After transferring ownership, you can optionally stay as a collaborator (stay_as_collaborator=true) or leave completely (default).",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to leave',
+                required=True,
+                example=123
             )
         ],
         request={
@@ -812,43 +898,123 @@ class LeavePlaylistView(APIView):
                 'properties': {
                     'new_owner_id': {
                         'type': 'integer',
-                        'description': 'ID of the collaborator to transfer ownership to (required for owners)'
+                        'description': 'ID of the collaborator to transfer ownership to (required for owners, must be an existing collaborator)',
+                        'example': 456
                     },
                     'stay_as_collaborator': {
                         'type': 'boolean',
-                        'description': 'If true, owner stays as collaborator after transfer (optional)',
+                        'description': 'If true, owner stays as collaborator after transferring ownership. If false or not provided, owner leaves completely.',
+                        'example': False,
                         'default': False
                     }
                 }
             }
         },
+        examples=[
+            OpenApiExample(
+                'Collaborator leaves',
+                description='A collaborator leaving the playlist (no body required)',
+                value=None
+            ),
+            OpenApiExample(
+                'Owner transfers and leaves',
+                description='Owner transfers ownership to another collaborator and leaves completely',
+                value={
+                    'new_owner_id': 456,
+                    'stay_as_collaborator': False
+                }
+            ),
+            OpenApiExample(
+                'Owner transfers and stays',
+                description='Owner transfers ownership but stays as a collaborator',
+                value={
+                    'new_owner_id': 456,
+                    'stay_as_collaborator': True
+                }
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'collaborator_left': {
+                        'summary': 'Collaborator left successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Left playlist successfully'
+                        }
+                    },
+                    'owner_transferred_and_left': {
+                        'summary': 'Owner transferred ownership and left',
+                        'value': {
+                            'success': True,
+                            'message': 'Left playlist successfully'
+                        }
+                    },
+                    'owner_transferred_and_stayed': {
+                        'summary': 'Owner transferred ownership and stayed as collaborator',
+                        'value': {
+                            'success': True,
+                            'message': 'Ownership transferred successfully'
+                        }
+                    }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'owner_missing_new_owner_id': {
+                        'summary': 'Owner must provide new_owner_id',
+                        'value': {
+                            'success': False,
+                            'message': 'Owners must transfer ownership before leaving. Please provide new_owner_id.'
+                        }
+                    },
+                    'new_owner_not_collaborator': {
+                        'summary': 'The selected new owner is not a collaborator',
+                        'value': {
+                            'success': False,
+                            'message': 'Selected user is not a collaborator on this playlist'
+                        }
+                    },
+                    'ownership_transfer_failed': {
+                        'summary': 'Core service rejected ownership transfer',
+                        'value': {
+                            'success': False,
+                            'message': 'Failed to transfer ownership'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'not_a_collaborator': {
+                        'summary': 'User is not a collaborator on this playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'You are not a collaborator on this playlist'
+                        }
+                    },
+                    'playlist_not_found': {
+                        'summary': 'Playlist does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Failed to verify playlist ownership'
+                        }
+                    }
                 }
             },
             503: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'core_service_unavailable': {
+                        'summary': 'Core service is down or unreachable',
+                        'value': {
+                            'success': False,
+                            'message': 'Failed to verify ownership: Connection refused'
+                        }
+                    }
                 }
             }
         }
