@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
@@ -28,43 +28,76 @@ class RecordPlayView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Record song play",
-        description="Records a play event for a song. Used for tracking listening history.",
+        description="Records a play event for a song. Used for tracking listening history and enabling features like recently played, undo, and recommendations. Each play creates a timestamped record.",
         request={
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'song_id': {'type': 'integer', 'description': 'Song ID that was played'}
+                    'song_id': {
+                        'type': 'integer',
+                        'description': 'Song ID that was played',
+                        'example': 456
+                    }
                 },
                 'required': ['song_id']
             }
         },
+        examples=[
+            OpenApiExample(
+                'Record play',
+                description='Record that a song was played',
+                value={'song_id': 456}
+            )
+        ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Play recorded successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'status': {'type': 'string'}
+                            'status': {
+                                'type': 'string',
+                                'example': 'recorded'
+                            },
+                            'played_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'description': 'Timestamp when the play was recorded',
+                                'example': '2026-04-07T18:30:00Z'
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'missing_song_id': {
+                        'summary': 'Song ID not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'song_id required',
+                            'errors': {
+                                'song_id': ['This field is required.']
+                            }
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Song not found'
                 }
             }
         }
@@ -94,16 +127,51 @@ class RecentPlaysView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Get recently played songs",
-        description="Returns a list of recently played songs (unique songs only, most recent first). Limited to 10 songs.",
+        description="Returns your recently played songs. Each song appears only once (most recent play determines position). Results are ordered by most recently played first. Maximum 10 songs returned.",
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 10 recently played songs'
+                    },
                     'data': {
                         'type': 'array',
-                        'items': SongSerializer
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {'type': 'integer', 'example': 1},
+                                'title': {'type': 'string', 'example': 'Bohemian Rhapsody'},
+                                'artist': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'name': {'type': 'string', 'example': 'Queen'}
+                                    }
+                                },
+                                'album': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'name': {'type': 'string', 'example': 'A Night at the Opera'}
+                                    }
+                                },
+                                'duration_seconds': {'type': 'integer', 'example': 354},
+                                'genre': {'type': 'string', 'example': 'Rock'},
+                                'last_played_at': {
+                                    'type': 'string',
+                                    'format': 'date-time',
+                                    'description': 'When this song was last played',
+                                    'example': '2026-04-07T18:25:00Z'
+                                }
+                            }
+                        },
+                        'description': 'Recently played songs, most recent first (max 10)'
                     }
                 }
             }
@@ -139,43 +207,69 @@ class UndoActionView(APIView):
     @extend_schema(
         tags=["History"],
         summary="Undo an action",
-        description="Undoes a previously performed action if it's still within the undo window and hasn't been undone already.",
+        description="Reverses a previously performed action. Actions can only be undone if they're within the undo window (configurable, default 24 hours) and haven't been undone already. Common undoable actions: adding tracks to playlist, creating playlists, deleting tracks.",
         parameters=[
             OpenApiParameter(
                 name='action_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Action ID to undo',
-                required=True
+                description='Action ID to undo (from your action history)',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'success': {'type': 'boolean'},
-                            'message': {'type': 'string'}
+                'examples': {
+                    'undo_success': {
+                        'summary': 'Action successfully undone',
+                        'value': {
+                            'success': True,
+                            'message': 'Action undone successfully',
+                            'data': {
+                                'action_id': 123,
+                                'action_type': 'add_track',
+                                'undone_at': '2026-04-07T18:35:00Z'
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'already_undone': {
+                        'summary': 'Action already undone',
+                        'value': {
+                            'success': False,
+                            'message': 'Action has already been undone',
+                            'error': 'already_undone'
+                        }
+                    },
+                    'expired': {
+                        'summary': 'Undo window expired',
+                        'value': {
+                            'success': False,
+                            'message': 'Undo window has expired (24 hours)',
+                            'error': 'expired'
+                        }
+                    },
+                    'not_undoable': {
+                        'summary': 'Action type cannot be undone',
+                        'value': {
+                            'success': False,
+                            'message': 'This action type cannot be undone',
+                            'error': 'not_undoable'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Action not found'
                 }
             }
         }

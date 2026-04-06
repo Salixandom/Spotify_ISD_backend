@@ -85,42 +85,111 @@ class TrackListView(APIView):
     @extend_schema(
         tags=["Tracks"],
         summary="List tracks in playlist",
-        description="Returns all tracks in a playlist, excluding tracks hidden by the user. Supports sorting by various fields.",
+        description="Returns all tracks in a playlist, excluding tracks you've hidden. Supports sorting by position, title, artist, album, genre, duration, year, or date added. Custom sorting respects the manual order set by the playlist owner.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to get tracks from',
+                required=True,
+                example=123
             ),
             OpenApiParameter(
                 name='sort',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Sort field (custom, title, artist, album, genre, duration, year, added_at)',
+                description='Sort field: custom (manual order), title, artist, album, genre, duration, year, added_at',
                 required=False,
-                enum=['custom', 'title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at']
+                enum=['custom', 'title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at'],
+                example='custom'
             ),
             OpenApiParameter(
                 name='order',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description='Sort order (asc or desc)',
+                description='Sort order: asc (ascending) or desc (descending)',
                 required=False,
-                enum=['asc', 'desc']
+                enum=['asc', 'desc'],
+                example='asc'
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 25 tracks'
+                    },
                     'data': {
                         'type': 'array',
-                        'items': TrackSerializer
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'id': {'type': 'integer', 'example': 789},
+                                'playlist_id': {'type': 'integer', 'example': 123},
+                                'song_id': {'type': 'integer', 'example': 456},
+                                'position': {
+                                    'type': 'integer',
+                                    'description': 'Position in playlist (1-based)',
+                                    'example': 1
+                                },
+                                'song': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 456},
+                                        'title': {'type': 'string', 'example': 'Bohemian Rhapsody'},
+                                        'artist': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer', 'example': 1},
+                                                'name': {'type': 'string', 'example': 'Queen'}
+                                            }
+                                        },
+                                        'album': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer', 'example': 1},
+                                                'name': {'type': 'string', 'example': 'A Night at the Opera'}
+                                            }
+                                        },
+                                        'duration_seconds': {'type': 'integer', 'example': 354},
+                                        'genre': {'type': 'string', 'example': 'Rock'}
+                                    }
+                                },
+                                'added_at': {
+                                    'type': 'string',
+                                    'format': 'date-time',
+                                    'description': 'When track was added to playlist',
+                                    'example': '2026-04-07T12:00:00Z'
+                                },
+                                'added_by': {
+                                    'type': 'integer',
+                                    'description': 'User ID who added this track',
+                                    'example': 1
+                                }
+                            }
+                        }
                     }
+                }
+            },
+            403: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Not authorized to access this playlist'
+                }
+            },
+            404: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }

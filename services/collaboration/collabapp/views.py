@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 import requests
 
@@ -71,23 +71,73 @@ class GenerateInviteView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="Generate invite link",
-        description="Generates a unique invite link for a playlist. The link can be shared to allow others to join as collaborators.",
+        description="Generates a unique invite link for a playlist. Only the playlist owner can generate invites. The link can be shared with others to allow them to join as collaborators. Invite links include a token and expire after 7 days.",
         parameters=[
             OpenApiParameter(
                 name='playlist_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='Playlist ID',
-                required=True
+                description='Playlist ID to generate invite for',
+                required=True,
+                example=123
             )
         ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': InviteLinkSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Invite link generated successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {'type': 'integer', 'example': 456},
+                            'token': {
+                                'type': 'string',
+                                'description': 'Unique invite token',
+                                'example': 'abc123xyz789'
+                            },
+                            'playlist_id': {'type': 'integer', 'example': 123},
+                            'created_by_id': {'type': 'integer', 'example': 1},
+                            'role': {
+                                'type': 'string',
+                                'enum': ['viewer', 'contributor', 'admin'],
+                                'description': 'Role assigned to users who join',
+                                'example': 'contributor'
+                            },
+                            'expires_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'description': 'When the invite link expires (7 days from creation)',
+                                'example': '2026-04-14T10:00:00Z'
+                            },
+                            'invite_url': {
+                                'type': 'string',
+                                'description': 'Full invite URL to share',
+                                'example': 'http://localhost:3000/invite/abc123xyz789'
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Only the playlist owner can generate invite links'
+                }
+            },
+            404: {
+                'type': 'object',
+                'example': {
+                    'success': False,
+                    'message': 'Playlist not found'
                 }
             }
         }
@@ -110,44 +160,105 @@ class JoinView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="Get invite link details",
-        description="Returns invite link details including playlist information. Used to preview what the user will join.",
+        description="Returns invite link details including playlist information, owner name, and current collaborators. Use this to preview what will happen before accepting an invite.",
         parameters=[
             OpenApiParameter(
                 name='token',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.PATH,
-                description='Invite token',
-                required=True
+                description='Invite token from invite link',
+                required=True,
+                example='abc123xyz789'
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Invite details retrieved successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'playlist_id': {'type': 'integer'},
-                            'playlist_name': {'type': 'string'},
-                            'inviter_name': {'type': 'string'},
-                            'collaborators': {
-                                'type': 'array',
-                                'items': {'type': 'integer'}
+                            'token': {
+                                'type': 'string',
+                                'description': 'Invite token',
+                                'example': 'abc123xyz789'
                             },
-                            'is_collaborative': {'type': 'boolean'},
-                            'owner_id': {'type': 'integer'},
-                            'valid': {'type': 'boolean'}
+                            'playlist_id': {
+                                'type': 'integer',
+                                'description': 'Playlist ID',
+                                'example': 123
+                            },
+                            'playlist_name': {
+                                'type': 'string',
+                                'description': 'Playlist name',
+                                'example': 'Team Workout Mix'
+                            },
+                            'role': {
+                                'type': 'string',
+                                'enum': ['viewer', 'contributor', 'admin'],
+                                'description': 'Role you will receive when you join',
+                                'example': 'contributor'
+                            },
+                            'inviter_name': {
+                                'type': 'string',
+                                'description': 'Name of the user who created the invite',
+                                'example': 'John Doe'
+                            },
+                            'collaborator_count': {
+                                'type': 'integer',
+                                'description': 'Number of current collaborators',
+                                'example': 5
+                            },
+                            'is_collaborative': {
+                                'type': 'boolean',
+                                'description': 'Whether this is a collaborative playlist',
+                                'example': True
+                            },
+                            'owner_id': {
+                                'type': 'integer',
+                                'description': 'User ID of playlist owner',
+                                'example': 1
+                            },
+                            'valid': {
+                                'type': 'boolean',
+                                'description': 'Whether the invite is still valid (not expired)',
+                                'example': True
+                            },
+                            'expires_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'description': 'When the invite expires',
+                                'example': '2026-04-14T10:00:00Z'
+                            }
                         }
                     }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'invalid_token': {
+                        'summary': 'Invite token not found',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid link'
+                        }
+                    },
+                    'expired': {
+                        'summary': 'Invite link has expired',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid link'
+                        }
+                    }
                 }
             }
         }
@@ -261,30 +372,73 @@ class JoinView(APIView):
     @extend_schema(
         tags=["Collaboration"],
         summary="Join playlist via invite",
-        description="Joins a collaborative playlist using an invite token. Converts the playlist to collaborative type if needed.",
+        description="Accept an invite and join a collaborative playlist. You will be added as a collaborator with the role specified in the invite. If the playlist is not collaborative, it will be converted automatically. Accepting is idempotent - if you're already a collaborator, returns success.",
         parameters=[
             OpenApiParameter(
                 name='token',
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.PATH,
-                description='Invite token',
-                required=True
+                description='Invite token from invite link',
+                required=True,
+                example='abc123xyz789'
             )
         ],
         responses={
             201: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': CollaboratorSerializer
+                'examples': {
+                    'joined_successfully': {
+                        'summary': 'Successfully joined playlist',
+                        'value': {
+                            'success': True,
+                            'message': 'Successfully joined playlist',
+                            'data': {
+                                'id': 789,
+                                'playlist_id': 123,
+                                'user_id': 456,
+                                'role': 'contributor',
+                                'joined_at': '2026-04-07T19:00:00Z'
+                            }
+                        }
+                    },
+                    'already_collaborator': {
+                        'summary': 'Already a collaborator (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'You are already a collaborator on this playlist',
+                            'data': {
+                                'id': 789,
+                                'playlist_id': 123,
+                                'user_id': 456,
+                                'role': 'contributor',
+                                'joined_at': '2026-04-06T10:00:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'owner_cannot_join': {
+                        'summary': 'Playlist owner cannot join via invite',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist owner cannot join their own playlist via invite'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'invalid_token': {
+                        'summary': 'Invite token not found or expired',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid link'
+                        }
+                    }
                 }
             }
         }
