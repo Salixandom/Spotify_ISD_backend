@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
     "collabapp",
     "shareapp",
 ]
@@ -57,6 +58,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # Database configuration - supports both DATABASE_URL and individual env vars
@@ -87,3 +89,18 @@ DATABASES["default"]["TEST"] = {"NAME": "spotifydb_test"}
 
 STATIC_URL = "/static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# drf-spectacular configuration
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Spotify ISD - Collaboration Service",
+    "DESCRIPTION": "Playlist collaboration and sharing service",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "TAGS": [
+        {"name": "Collaboration", "description": "Playlist collaboration features"},
+        {"name": "Sharing", "description": "Playlist sharing functionality"},
+        {"name": "Health", "description": "Service health checks"},
+    ],
+}

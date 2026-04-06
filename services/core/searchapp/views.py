@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
     SuccessResponse,
@@ -29,6 +31,38 @@ class SearchView(APIView):
     """Unified search across songs, playlists, artists, and albums."""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Unified search",
+        description="Search across songs, playlists, artists, and albums with a single query.",
+        parameters=[
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'songs': {'type': 'array', 'items': SongSerializer},
+                            'playlists': {'type': 'array', 'items': PlaylistSerializer},
+                            'artists': {'type': 'array', 'items': ArtistSerializer},
+                            'albums': {'type': 'array', 'items': AlbumSerializer}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         query = request.query_params.get('q', '')
 
@@ -70,6 +104,24 @@ class SearchView(APIView):
 class BrowseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Browse genres",
+        description="Returns a list of all music genres for browsing.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': {'type': 'string'}
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         genres = (
             Song.objects.exclude(genre='')
@@ -86,6 +138,33 @@ class BrowseView(APIView):
 class ArtistListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="List artists",
+        description="Returns a list of artists with optional search filtering.",
+        parameters=[
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query to filter artists by name',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': ArtistSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         query = request.query_params.get('q', '')
         qs = Artist.objects.all()
@@ -100,6 +179,37 @@ class ArtistListView(APIView):
 class ArtistDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get artist details",
+        description="Returns detailed information about a specific artist.",
+        parameters=[
+            OpenApiParameter(
+                name='artist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Artist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': ArtistSerializer
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, artist_id):
         try:
             artist = Artist.objects.get(id=artist_id)
@@ -114,6 +224,33 @@ class ArtistDetailView(APIView):
 class AlbumListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="List albums",
+        description="Returns a list of albums with optional search filtering.",
+        parameters=[
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query to filter albums by name or artist',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': AlbumSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         query = request.query_params.get('q', '')
         qs = Album.objects.select_related('artist')
@@ -130,6 +267,37 @@ class AlbumListView(APIView):
 class AlbumDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get album details",
+        description="Returns detailed information about a specific album.",
+        parameters=[
+            OpenApiParameter(
+                name='album_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Album ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': AlbumSerializer
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, album_id):
         try:
             album = Album.objects.select_related('artist').get(id=album_id)
@@ -144,6 +312,56 @@ class AlbumDetailView(APIView):
 class SongSearchView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Search songs",
+        description="Search for songs with optional filtering by genre, sorting, and text search.",
+        parameters=[
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query (title, artist, or album)',
+                required=False
+            ),
+            OpenApiParameter(
+                name='genre',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by genre',
+                required=False
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field',
+                required=False,
+                enum=['title', 'artist', 'album', 'genre', 'duration', 'year']
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order',
+                required=False,
+                enum=['asc', 'desc']
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': SongSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         query = request.query_params.get('q', '')
         genre = request.query_params.get('genre', '')
@@ -177,6 +395,41 @@ class SongSearchView(APIView):
 class PlaylistSearchView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Search playlists",
+        description="Search for playlists with optional text search and type filtering.",
+        parameters=[
+            OpenApiParameter(
+                name='q',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Search query (name or description)',
+                required=False
+            ),
+            OpenApiParameter(
+                name='type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by playlist type',
+                required=False,
+                enum=['solo', 'collaborative']
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': PlaylistSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         query = request.query_params.get('q', '')
         playlist_type = request.query_params.get('type', '')
@@ -210,6 +463,37 @@ class GenreListView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="List all genres",
+        description="Returns a list of all music genres with statistics. Useful for genre browsing and exploration.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'genres': {
+                                'type': 'array',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'name': {'type': 'string'},
+                                        'song_count': {'type': 'integer'},
+                                        'image_url': {'type': 'string'},
+                                        'description': {'type': 'string'}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         genres = Genre.objects.all().order_by('name')
 
@@ -251,6 +535,64 @@ class GenreDetailView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get genre details",
+        description="Returns genre information along with top songs in that genre. Supports sorting by popularity, recency, or title.",
+        parameters=[
+            OpenApiParameter(
+                name='genre_name',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+                description='Genre name',
+                required=True
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort songs by',
+                required=False,
+                enum=['popularity', 'recent', 'title']
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of songs to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'genre': {
+                                'type': 'object',
+                                'properties': {
+                                    'name': {'type': 'string'},
+                                    'description': {'type': 'string'},
+                                    'song_count': {'type': 'integer'},
+                                    'image_url': {'type': 'string'},
+                                    'follower_count': {'type': 'integer'}
+                                }
+                            },
+                            'songs': {
+                                'type': 'array',
+                                'items': SongMinimalSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, genre_name):
         # Try to get from Genre table first
         try:
@@ -306,6 +648,59 @@ class NewReleasesView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get new releases",
+        description="Returns recently released songs and newly created public playlists. Supports filtering by genre and time period.",
+        parameters=[
+            OpenApiParameter(
+                name='days',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of days to look back (default: 90)',
+                required=False
+            ),
+            OpenApiParameter(
+                name='genre',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by genre',
+                required=False
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'since_date': {'type': 'string', 'format': 'date'},
+                            'days': {'type': 'integer'},
+                            'songs': {
+                                'type': 'array',
+                                'items': SongMinimalSerializer
+                            },
+                            'playlists': {
+                                'type': 'array',
+                                'items': PlaylistSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         from datetime import datetime, timedelta
 
@@ -367,6 +762,59 @@ class TrendingView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get trending content",
+        description="Returns trending songs (by popularity) and trending playlists (by likes/follows). Supports genre and time period filtering.",
+        parameters=[
+            OpenApiParameter(
+                name='genre',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by genre',
+                required=False
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results to return',
+                required=False
+            ),
+            OpenApiParameter(
+                name='period',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Time period',
+                required=False,
+                enum=['all', 'week', 'month']
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'period': {'type': 'string'},
+                            'songs': {
+                                'type': 'array',
+                                'items': SongMinimalSerializer
+                            },
+                            'playlists': {
+                                'type': 'array',
+                                'items': PlaylistSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         from datetime import datetime, timedelta
         from django.db.models import Count, Q
@@ -439,6 +887,56 @@ class SimilarSongsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get similar songs",
+        description="Returns songs similar to the given song, based on genre and artist. Useful for discovery and recommendations.",
+        parameters=[
+            OpenApiParameter(
+                name='song_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Song ID to find similar songs for',
+                required=True
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of similar songs to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'song_id': {'type': 'integer'},
+                            'song_title': {'type': 'string'},
+                            'song_genre': {'type': 'string'},
+                            'similar_songs': {
+                                'type': 'array',
+                                'items': SongMinimalSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, song_id):
         try:
             song = Song.objects.get(id=song_id)
@@ -492,6 +990,47 @@ class RecommendationsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Search"],
+        summary="Get personalized recommendations",
+        description="Returns personalized song recommendations based on user's liked and followed playlists. Analyzes genre preferences and suggests popular songs in preferred genres that the user hasn't heard yet.",
+        parameters=[
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of recommendations to return',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'recommendation_type': {
+                                'type': 'string',
+                                'enum': ['personalized', 'trending']
+                            },
+                            'preferred_genres': {
+                                'type': 'array',
+                                'items': {'type': 'string'}
+                            },
+                            'songs': {
+                                'type': 'array',
+                                'items': SongMinimalSerializer
+                            },
+                            'total': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         limit = int(request.query_params.get('limit', 20))
 
@@ -612,6 +1151,35 @@ class RecommendationsView(APIView):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=["Health"],
+    summary="Search service health check",
+    description="Check if the search service and database are healthy",
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'},
+                'data': {
+                    'type': 'object',
+                    'properties': {
+                        'status': {'type': 'string'},
+                        'service': {'type': 'string'},
+                        'database': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        503: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'}
+            }
+        }
+    }
+)
 def health_check(request):
     try:
         with connection.cursor() as cursor:

@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
     "playlistapp",
     "trackapp",
     "searchapp",
@@ -45,6 +46,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 # Database configuration - supports both DATABASE_URL and individual env vars
@@ -95,3 +97,20 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Timezone configuration - store all datetimes in UTC
 USE_TZ = True
 TIME_ZONE = 'UTC'
+
+# drf-spectacular configuration
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Spotify ISD - Core Service",
+    "DESCRIPTION": "Core music service - playlists, tracks, search, and history",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "TAGS": [
+        {"name": "Playlists", "description": "Playlist CRUD operations"},
+        {"name": "Tracks", "description": "Track management"},
+        {"name": "Search", "description": "Search functionality"},
+        {"name": "History", "description": "Listening history"},
+        {"name": "Health", "description": "Service health checks"},
+    ],
+}

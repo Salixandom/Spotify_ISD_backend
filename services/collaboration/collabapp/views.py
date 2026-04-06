@@ -1,5 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
+from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 import requests
 
 from utils.responses import (
@@ -18,6 +21,35 @@ from .serializers import CollaboratorSerializer, InviteLinkSerializer
 class HealthCheckView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @extend_schema(
+        tags=["Health"],
+        summary="Collaboration service health check",
+        description="Check if the collaboration service and database are healthy",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'status': {'type': 'string'},
+                            'service': {'type': 'string'},
+                            'database': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            503: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request):
         try:
             with connection.cursor() as cursor:
@@ -36,6 +68,30 @@ class HealthCheckView(APIView):
 class GenerateInviteView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Generate invite link",
+        description="Generates a unique invite link for a playlist. The link can be shared to allow others to join as collaborators.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': InviteLinkSerializer
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         invite = InviteLink.objects.create(
             playlist_id=playlist_id,
@@ -51,6 +107,51 @@ class GenerateInviteView(APIView):
 class JoinView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Get invite link details",
+        description="Returns invite link details including playlist information. Used to preview what the user will join.",
+        parameters=[
+            OpenApiParameter(
+                name='token',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+                description='Invite token',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'playlist_id': {'type': 'integer'},
+                            'playlist_name': {'type': 'string'},
+                            'inviter_name': {'type': 'string'},
+                            'collaborators': {
+                                'type': 'array',
+                                'items': {'type': 'integer'}
+                            },
+                            'is_collaborative': {'type': 'boolean'},
+                            'owner_id': {'type': 'integer'},
+                            'valid': {'type': 'boolean'}
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, token):
         """
         GET /api/collab/join/<token>/
@@ -157,6 +258,37 @@ class JoinView(APIView):
                 message='Invite link is valid (core service unavailable)'
             )
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Join playlist via invite",
+        description="Joins a collaborative playlist using an invite token. Converts the playlist to collaborative type if needed.",
+        parameters=[
+            OpenApiParameter(
+                name='token',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.PATH,
+                description='Invite token',
+                required=True
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': CollaboratorSerializer
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, token):
         try:
             invite = InviteLink.objects.get(token=token)
@@ -241,6 +373,33 @@ class JoinView(APIView):
 class CollaboratorListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="List playlist collaborators",
+        description="Returns a list of all collaborators for a specific playlist.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': CollaboratorSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         collabs = Collaborator.objects.filter(playlist_id=playlist_id)
         return SuccessResponse(
@@ -248,6 +407,62 @@ class CollaboratorListView(APIView):
             message=f'Retrieved {collabs.count()} collaborators'
         )
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Remove collaborator",
+        description="Removes a collaborator from a playlist. Users can always remove themselves. Playlist owners can remove any collaborator.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'user_id': {
+                        'type': 'integer',
+                        'description': 'ID of the collaborator to remove'
+                    },
+                    'owner_id': {
+                        'type': 'integer',
+                        'description': 'ID of the playlist owner (for owner verification)'
+                    }
+                }
+            }
+        },
+        responses={
+            204: {
+                'description': 'Collaborator removed successfully'
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            503: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         """
         Remove a collaborator from a playlist.
@@ -310,6 +525,29 @@ class CollaboratorListView(APIView):
 class MyCollaborationsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Get my collaborations",
+        description="Returns a list of playlist IDs where the authenticated user is a collaborator.",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'playlist_ids': {
+                                'type': 'array',
+                                'items': {'type': 'integer'}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         playlist_ids = (
             Collaborator.objects.filter(user_id=request.user.id)
@@ -324,6 +562,38 @@ class MyCollaborationsView(APIView):
 class MyRoleView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Get my role in playlist",
+        description="Returns the authenticated user's role for a specific playlist (owner, collaborator, or none).",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'role': {
+                                'type': 'string',
+                                'enum': ['owner', 'collaborator', None]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         # First check if user is the owner via cross-service call
         import os
@@ -369,6 +639,66 @@ class MyRoleView(APIView):
 class LeavePlaylistView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Collaboration"],
+        summary="Leave collaborative playlist",
+        description="Leave a collaborative playlist. For collaborators: simply removes them. For owners: must transfer ownership to another collaborator first.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'new_owner_id': {
+                        'type': 'integer',
+                        'description': 'ID of the collaborator to transfer ownership to (required for owners)'
+                    },
+                    'stay_as_collaborator': {
+                        'type': 'boolean',
+                        'description': 'If true, owner stays as collaborator after transfer (optional)',
+                        'default': False
+                    }
+                }
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            503: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         """
         Leave a collaborative playlist.

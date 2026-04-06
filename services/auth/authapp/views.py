@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 from .serializers import RegisterSerializer, UserSerializer, UserProfileSerializer, PublicUserProfileSerializer, UserFollowSerializer, ChangePasswordSerializer
 from django.contrib.auth.models import User
 from django.db import connection
@@ -21,6 +23,42 @@ class CustomTokenRefreshView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Refresh access token",
+        description="Refresh an expired access token using a valid refresh token",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'refresh': {'type': 'string', 'description': 'JWT refresh token'}
+                },
+                'required': ['refresh']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'access': {'type': 'string', 'description': 'New JWT access token'}
+                        }
+                    }
+                }
+            },
+            401: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, *args, **kwargs):
         from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
@@ -44,6 +82,45 @@ class CustomTokenObtainPairView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"],
+        summary="User login",
+        description="Authenticate with username/password and receive JWT tokens",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'username': {'type': 'string', 'description': 'Username'},
+                    'password': {'type': 'string', 'description': 'Password', 'format': 'password'}
+                },
+                'required': ['username', 'password']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'access': {'type': 'string', 'description': 'JWT access token'},
+                            'refresh': {'type': 'string', 'description': 'JWT refresh token'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def post(self, request, *args, **kwargs):
         from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -65,6 +142,30 @@ class CustomTokenObtainPairView(APIView):
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Register new user",
+        description="Create a new user account. A profile is automatically created.",
+        request=RegisterSerializer,
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': RegisterSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def post(self, request):
         import logging
         logger = logging.getLogger(__name__)
@@ -89,6 +190,21 @@ class RegisterView(APIView):
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Get current user info",
+        description="Retrieve basic information about the authenticated user",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UserSerializer
+                }
+            }
+        }
+    )
     def get(self, request):
         serializer = UserSerializer(request.user)
         return SuccessResponse(
@@ -99,6 +215,35 @@ class MeView(APIView):
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
+@extend_schema(
+    tags=["Health"],
+    summary="Health check",
+    description="Check if the auth service and database are healthy",
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'},
+                'data': {
+                    'type': 'object',
+                    'properties': {
+                        'status': {'type': 'string'},
+                        'service': {'type': 'string'},
+                        'database': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        503: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'}
+            }
+        }
+    }
+)
 def health_check(request):
     """
     Health check endpoint for monitoring and orchestration
@@ -126,6 +271,21 @@ class MyProfileView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Profile"],
+        summary="Get my profile",
+        description="Retrieve the authenticated user's full profile",
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UserProfileSerializer
+                }
+            }
+        }
+    )
     def get(self, request):
         """Get my profile"""
         from .models import UserProfile
@@ -140,6 +300,30 @@ class MyProfileView(APIView):
             message='Profile retrieved successfully'
         )
 
+    @extend_schema(
+        tags=["Profile"],
+        summary="Update my profile",
+        description="Update the authenticated user's profile. All fields are optional.",
+        request=UserProfileSerializer,
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UserProfileSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            }
+        }
+    )
     def put(self, request):
         """Update my profile"""
         from .models import UserProfile
@@ -169,6 +353,37 @@ class PublicProfileView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Profile"],
+        summary="Get user profile",
+        description="Get a user's profile. Respects privacy settings (public, followers, private). Your own profile always shows full data.",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': PublicUserProfileSerializer
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def get(self, request, user_id):
         """Get user's public profile"""
         from .models import UserProfile
@@ -217,6 +432,37 @@ class UpdateAvatarView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Profile"],
+        summary="Update avatar",
+        description="Update the authenticated user's profile avatar URL",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'avatar_url': {'type': 'string', 'description': 'URL of the avatar image'}
+                },
+                'required': ['avatar_url']
+            }
+        },
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UserProfileSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request):
         """Update avatar URL"""
         from .models import UserProfile
@@ -249,6 +495,44 @@ class FollowUserView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Social"],
+        summary="Follow a user",
+        description="Follow a user. Returns success if already following.",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID to follow',
+                required=True
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': UserFollowSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, user_id):
         """Follow a user"""
         from .models import UserFollow
@@ -290,6 +574,49 @@ class FollowUserView(APIView):
             status_code=201
         )
 
+    @extend_schema(
+        tags=["Social"],
+        summary="Unfollow a user",
+        description="Unfollow a user you are currently following",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID to unfollow',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'unfollowed': {'type': 'boolean'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, user_id):
         """Unfollow a user"""
         from .models import UserFollow
@@ -321,6 +648,40 @@ class FollowersView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Social"],
+        summary="Get followers",
+        description="Get list of users who follow the specified user (or authenticated user if not specified)",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID to get followers for (optional, defaults to authenticated user)',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer'},
+                            'followers': {
+                                'type': 'array',
+                                'items': UserFollowSerializer
+                            },
+                            'count': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, user_id=None):
         """Get followers for a user (defaults to authenticated user)"""
         from .models import UserFollow
@@ -348,6 +709,40 @@ class FollowingView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Social"],
+        summary="Get following",
+        description="Get list of users that the specified user follows (or authenticated user if not specified)",
+        parameters=[
+            OpenApiParameter(
+                name='user_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='User ID to get following for (optional, defaults to authenticated user)',
+                required=False
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer'},
+                            'following': {
+                                'type': 'array',
+                                'items': UserFollowSerializer
+                            },
+                            'count': {'type': 'integer'}
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, user_id=None):
         """Get following for a user (defaults to authenticated user)"""
         from .models import UserFollow
@@ -375,6 +770,42 @@ class ChangePasswordView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Change password",
+        description="Change the authenticated user's password. Requires current password for verification.",
+        request=ChangePasswordSerializer,
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'success': {'type': 'boolean'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            401: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request):
         from django.contrib.auth import authenticate
 

@@ -1,6 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.types import OpenApiTypes
 
 from utils.responses import (
     SuccessResponse,
@@ -80,6 +82,49 @@ TRACK_SORT_MAP = {
 class TrackListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="List tracks in playlist",
+        description="Returns all tracks in a playlist, excluding tracks hidden by the user. Supports sorting by various fields.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            ),
+            OpenApiParameter(
+                name='sort',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort field (custom, title, artist, album, genre, duration, year, added_at)',
+                required=False,
+                enum=['custom', 'title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at']
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Sort order (asc or desc)',
+                required=False,
+                enum=['asc', 'desc']
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'array',
+                        'items': TrackSerializer
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         sort = request.query_params.get('sort', 'custom')
         order = request.query_params.get('order', 'asc')
@@ -98,6 +143,68 @@ class TrackListView(APIView):
             message=f'Retrieved {tracks.count()} tracks'
         )
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Add track to playlist",
+        description="Adds a song to a playlist. Available to playlist owner and collaborators.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'song_id': {'type': 'integer', 'description': 'Song ID to add'}
+                },
+                'required': ['song_id']
+            }
+        },
+        responses={
+            201: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': TrackSerializer
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            409: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         song_id = request.data.get('song_id')
         if not song_id:
@@ -164,6 +271,46 @@ class TrackListView(APIView):
 class TrackDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Delete track from playlist",
+        description="Removes a specific track from a playlist. Available only to playlist owner.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            ),
+            OpenApiParameter(
+                name='track_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Track ID',
+                required=True
+            )
+        ],
+        responses={
+            204: {
+                'description': 'Track deleted successfully'
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id, track_id):
         _, err = _require_playlist_owner(playlist_id, request.user.id)
         if err:
@@ -190,6 +337,70 @@ class TrackReorderRemoveView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Reorder and remove tracks",
+        description="Reorders tracks and removes any tracks not in the provided list. Available to owner and collaborators.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'track_ids': {
+                        'type': 'array',
+                        'items': {'type': 'integer'},
+                        'description': 'Final ordered list of track IDs. Tracks not in this list will be removed.'
+                    }
+                },
+                'required': ['track_ids']
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def put(self, request, playlist_id):
         if 'track_ids' not in request.data:
             return ValidationErrorResponse(
@@ -246,6 +457,44 @@ class TrackRemoveView(APIView):
     Removes specific tracks from a playlist without reordering remaining tracks."""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Batch remove tracks",
+        description="Removes multiple tracks from a playlist without reordering. Available only to playlist owner.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'track_ids': {
+                        'type': 'array',
+                        'items': {'type': 'integer'},
+                        'description': 'List of track IDs to remove'
+                    }
+                }
+            }
+        },
+        responses={
+            204: {
+                'description': 'Tracks removed successfully'
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         _, err = _require_playlist_owner(playlist_id, request.user.id)
         if err:
@@ -260,6 +509,42 @@ class PlaylistArchiveView(APIView):
     DELETE /<playlist_id>/archive/  → unarchive playlist for requesting user"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Archive playlist",
+        description="Archives a playlist for the authenticated user. Archived playlists are hidden from default views.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -271,6 +556,25 @@ class PlaylistArchiveView(APIView):
             message='Playlist archived successfully'
         )
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Unarchive playlist",
+        description="Unarchives a playlist for the authenticated user.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        responses={
+            204: {
+                'description': 'Playlist unarchived successfully'
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         UserPlaylistArchive.objects.filter(user_id=request.user.id, playlist_id=playlist_id).delete()
         return NoContentResponse()
@@ -281,6 +585,49 @@ class TrackHideView(APIView):
     DELETE /<playlist_id>/<track_id>/hide/  → unhide track for requesting user"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Hide track",
+        description="Hides a track for the authenticated user. Hidden tracks won't appear in track listings.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            ),
+            OpenApiParameter(
+                name='track_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Track ID',
+                required=True
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id, track_id):
         try:
             track = Track.objects.get(id=track_id, playlist_id=playlist_id)
@@ -292,6 +639,32 @@ class TrackHideView(APIView):
             message='Track hidden successfully'
         )
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Unhide track",
+        description="Unhides a track for the authenticated user.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            ),
+            OpenApiParameter(
+                name='track_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Track ID',
+                required=True
+            )
+        ],
+        responses={
+            204: {
+                'description': 'Track unhidden successfully'
+            }
+        }
+    )
     def delete(self, request, playlist_id, track_id):
         UserTrackHide.objects.filter(
             user_id=request.user.id,
@@ -303,6 +676,35 @@ class TrackHideView(APIView):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@extend_schema(
+    tags=["Health"],
+    summary="Track service health check",
+    description="Check if the track service and database are healthy",
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'},
+                'data': {
+                    'type': 'object',
+                    'properties': {
+                        'status': {'type': 'string'},
+                        'service': {'type': 'string'},
+                        'database': {'type': 'string'}
+                    }
+                }
+            }
+        },
+        503: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'message': {'type': 'string'}
+            }
+        }
+    }
+)
 def health_check(request):
     try:
         with connection.cursor() as cursor:
@@ -337,6 +739,73 @@ class TrackSortView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Tracks"],
+        summary="Sort playlist tracks",
+        description="Sorts all tracks in a playlist by a specified field and persists the new order. Available to owner and collaborators.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Playlist ID',
+                required=True
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'sort_by': {
+                        'type': 'string',
+                        'enum': ['custom', 'title', 'artist', 'album', 'genre', 'duration', 'year', 'added_at'],
+                        'description': 'Field to sort by'
+                    },
+                    'order': {
+                        'type': 'string',
+                        'enum': ['asc', 'desc'],
+                        'description': 'Sort order'
+                    }
+                }
+            }
+        },
+        responses={
+            200: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'sort_by': {'type': 'string'},
+                            'order': {'type': 'string'},
+                            'tracks_updated': {'type': 'integer'},
+                            'tracks': {
+                                'type': 'array',
+                                'items': TrackSerializer
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'},
+                    'errors': {'type': 'object'}
+                }
+            },
+            403: {
+                'type': 'object',
+                'properties': {
+                    'success': {'type': 'boolean'},
+                    'message': {'type': 'string'}
+                }
+            }
+        }
+    )
     def put(self, request, playlist_id):
         sort_by = request.data.get('sort_by', 'custom')
         order = request.data.get('order', 'asc')
