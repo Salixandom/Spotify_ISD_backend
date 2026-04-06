@@ -1,8 +1,11 @@
-# Render.com Deployment Configuration
+# Render.com Deployment Configuration Template
 # https://render.com/docs/yaml-spec
 #
-# Configuration: Supabase (External PostgreSQL)
-# All services connect to a Supabase project instead of Render's internal database
+# Instructions:
+# 1. Copy this file to render.yaml: cp render.yaml.template render.yaml
+# 2. Replace placeholder values with real credentials
+# 3. Add render.yaml to .gitignore (already done)
+# 4. NEVER commit render.yaml with real credentials!
 
 services:
   # Auth Service
@@ -15,21 +18,19 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8001
-      # Supabase Connection (replace with your Supabase DATABASE_URL)
+      # Supabase Connection - REPLACE WITH REAL VALUE
       - key: DATABASE_URL
         value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-        # Get this from: Supabase Dashboard → Settings → Database → Connection String
-        # Format: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
-        generateValue: true
+        value: [GENERATE-SECRET-KEY-USE-openssl-rand-hex-32]
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
+        value: "https://your-frontend.vercel.app"
       - key: RUN_MIGRATIONS
-        value: false  # Run migrations manually after deployment
+        value: true  # Automatically run migrations on startup
     domains:
       - auth-yourdomain.onrender.com
 
@@ -43,21 +44,21 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8002
-      # Supabase Connection (same for all services)
+      # Supabase Connection (same for all services) - REPLACE WITH REAL VALUE
       - key: DATABASE_URL
         value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
-        generateValue: true
+        value: [GENERATE-SECRET-KEY-USE-openssl-rand-hex-32]
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
+        value: "https://your-frontend.vercel.app"
       - key: AUTH_SERVICE_URL
         value: https://auth-service.onrender.com
       - key: RUN_MIGRATIONS
-        value: false
+        value: true
     domains:
       - core-yourdomain.onrender.com
 
@@ -71,23 +72,49 @@ services:
     envVars:
       - key: SERVICE_PORT
         value: 8003
-      # Supabase Connection (same for all services)
+      # Supabase Connection (same for all services) - REPLACE WITH REAL VALUE
       - key: DATABASE_URL
         value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
       - key: SECRET_KEY
-        generateValue: true
+        value: [GENERATE-SECRET-KEY-USE-openssl-rand-hex-32]
       - key: DEBUG
         value: false
       - key: ALLOWED_HOSTS
         value: "*.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://your-frontend.onrender.com"
+        value: "https://your-frontend.vercel.app"
       - key: AUTH_SERVICE_URL
         value: https://auth-service.onrender.com
       - key: RUN_MIGRATIONS
-        value: false
+        value: true
     domains:
       - collab-yourdomain.onrender.com
 
-# Note: To use Render's internal PostgreSQL instead, restore the original render.yaml
-# or create a separate render-postgres.yaml file.
+  # Playback Service
+  - type: pserv
+    name: playback-service
+    env: docker
+    plan: free
+    dockerContext: ./services/playback
+    dockerfilePath: ./services/playback/Dockerfile
+    envVars:
+      - key: SERVICE_PORT
+        value: 8004
+      # Supabase Connection (same for all services) - REPLACE WITH REAL VALUE
+      - key: DATABASE_URL
+        value: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+      - key: SECRET_KEY
+        value: [GENERATE-SECRET-KEY-USE-openssl-rand-hex-32]
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_HOSTS
+        value: "*.onrender.com"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://your-frontend.vercel.app"
+      - key: RUN_MIGRATIONS
+        value: true
+    domains:
+      - playback-yourdomain.onrender.com
+
+# Note: This is a TEMPLATE file. Do NOT use directly.
+# Copy to render.yaml and replace placeholders before deploying.

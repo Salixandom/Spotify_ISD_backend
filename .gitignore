@@ -69,3 +69,8 @@ Thumbs.db
 *.key
 secrets/
 *.secret
+
+# Production configuration with secrets
+render.yaml
+*.production
+.env.production
