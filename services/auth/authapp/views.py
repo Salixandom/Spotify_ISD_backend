@@ -429,14 +429,58 @@ class MeView(APIView):
     @extend_schema(
         tags=["Authentication"],
         summary="Get current user info",
-        description="Retrieve basic information about the authenticated user",
+        description="Retrieve basic information about the authenticated user including username, email, and name. This endpoint verifies your JWT token is valid and returns your user details.",
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': UserSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'User profile retrieved successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {
+                                'type': 'integer',
+                                'description': 'Your user ID',
+                                'example': 1
+                            },
+                            'username': {
+                                'type': 'string',
+                                'description': 'Your username',
+                                'example': 'john_doe123'
+                            },
+                            'email': {
+                                'type': 'string',
+                                'format': 'email',
+                                'description': 'Your email address',
+                                'example': 'john.doe@example.com'
+                            },
+                            'first_name': {
+                                'type': 'string',
+                                'description': 'Your first name',
+                                'example': 'John'
+                            },
+                            'last_name': {
+                                'type': 'string',
+                                'description': 'Your last name',
+                                'example': 'Doe'
+                            }
+                        }
+                    }
+                }
+            },
+            401: {
+                'type': 'object',
+                'description': 'Token is invalid or expired',
+                'example': {
+                    'success': False,
+                    'message': 'Authentication credentials were not provided'
                 }
             }
         }
@@ -737,30 +781,72 @@ class PublicProfileView(APIView):
     @extend_schema(
         tags=["Profile"],
         summary="Get user profile",
-        description="Get a user's profile. Respects privacy settings (public, followers, private). Your own profile always shows full data.",
+        description="Get a user's profile. Respects privacy settings: public profiles show all data to everyone, followers-only profiles show only to followers, private profiles show only to the owner. Your own profile always shows full data regardless of privacy setting.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
-                description='User ID',
-                required=True
+                description='User ID to fetch profile for',
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': PublicUserProfileSerializer
+                'examples': {
+                    'public_profile': {
+                        'summary': 'Public profile (visible to everyone)',
+                        'value': {
+                            'success': True,
+                            'message': 'Profile retrieved successfully',
+                            'data': {
+                                'user_id': 123,
+                                'bio': 'Music enthusiast and playlist creator',
+                                'location': 'Los Angeles, CA',
+                                'website': 'https://example.com',
+                                'avatar_url': 'https://example.com/avatar.jpg',
+                                'profile_visibility': 'public',
+                                'show_activity': True
+                            }
+                        }
+                    },
+                    'own_profile': {
+                        'summary': 'Your own profile (always full data)',
+                        'value': {
+                            'success': True,
+                            'message': 'Profile retrieved successfully',
+                            'data': {
+                                'user_id': 1,
+                                'bio': 'My music journey',
+                                'location': 'New York, NY',
+                                'website': 'https://mymusic.com',
+                                'avatar_url': 'https://example.com/me.jpg',
+                                'profile_visibility': 'private',
+                                'show_activity': False
+                            }
+                        }
+                    }
                 }
             },
             403: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'private_profile': {
+                        'summary': 'Private profile (not visible to non-followers)',
+                        'value': {
+                            'success': False,
+                            'message': 'This profile is private'
+                        }
+                    },
+                    'followers_only': {
+                        'summary': 'Followers-only profile (not visible to non-followers)',
+                        'value': {
+                            'success': False,
+                            'message': 'This profile is only visible to followers'
+                        }
+                    }
                 }
             }
         }
@@ -816,30 +902,82 @@ class UpdateAvatarView(APIView):
     @extend_schema(
         tags=["Profile"],
         summary="Update avatar",
-        description="Update the authenticated user's profile avatar URL",
+        description="Update the authenticated user's profile avatar by providing a URL to an image. The URL should be publicly accessible. Common image formats: JPG, PNG, GIF, WebP. Recommended size: 400x400px.",
         request={
             'application/json': {
                 'type': 'object',
                 'properties': {
-                    'avatar_url': {'type': 'string', 'description': 'URL of the avatar image'}
+                    'avatar_url': {
+                        'type': 'string',
+                        'format': 'uri',
+                        'description': 'Public URL of the avatar image',
+                        'example': 'https://example.com/avatars/user123.jpg'
+                    }
                 },
                 'required': ['avatar_url']
             }
         },
+        examples=[
+            OpenApiExample(
+                'Update avatar URL',
+                description='Update profile avatar with a new image URL',
+                value={'avatar_url': 'https://example.com/avatars/my-new-avatar.jpg'}
+            )
+        ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': UserProfileSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Avatar updated successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'user_id': {'type': 'integer', 'example': 1},
+                            'avatar_url': {
+                                'type': 'string',
+                                'example': 'https://example.com/avatars/my-new-avatar.jpg'
+                            },
+                            'bio': {'type': 'string', 'example': 'Music lover'},
+                            'location': {'type': 'string', 'example': 'NYC'},
+                            'profile_visibility': {
+                                'type': 'string',
+                                'example': 'public',
+                                'enum': ['public', 'followers', 'private']
+                            }
+                        }
+                    }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'missing_url': {
+                        'summary': 'Avatar URL not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'avatar_url required',
+                            'errors': {
+                                'avatar_url': ['This field is required']
+                            }
+                        }
+                    },
+                    'invalid_url': {
+                        'summary': 'Invalid URL format',
+                        'value': {
+                            'success': False,
+                            'message': 'avatar_url required',
+                            'errors': {
+                                'avatar_url': ['Enter a valid URL.']
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -879,37 +1017,92 @@ class FollowUserView(APIView):
     @extend_schema(
         tags=["Social"],
         summary="Follow a user",
-        description="Follow a user. Returns success if already following.",
+        description="Follow a user to see their public activity and updates in your feed. You will see their public playlists and activity. Following is idempotent - following an already-followed user returns success.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='User ID to follow',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             201: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': UserFollowSerializer
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'User followed successfully'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'id': {'type': 'integer', 'example': 456},
+                            'follower_id': {
+                                'type': 'integer',
+                                'description': 'Your user ID',
+                                'example': 1
+                            },
+                            'following_id': {
+                                'type': 'integer',
+                                'description': 'User ID you are now following',
+                                'example': 123
+                            },
+                            'created_at': {
+                                'type': 'string',
+                                'format': 'date-time',
+                                'example': '2026-04-07T16:30:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            200: {
+                'type': 'object',
+                'description': 'Already following (idempotent)',
+                'properties': {
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'You are already following this user'
+                    },
+                    'data': {
+                        'type': 'object',
+                        'properties': {
+                            'already_following': {
+                                'type': 'boolean',
+                                'example': True
+                            }
+                        }
+                    }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'follow_self': {
+                        'summary': 'Cannot follow yourself',
+                        'value': {
+                            'success': False,
+                            'message': 'You cannot follow yourself'
+                        }
+                    }
                 }
             },
             404: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'User not found'
                 }
             }
         }
@@ -958,42 +1151,50 @@ class FollowUserView(APIView):
     @extend_schema(
         tags=["Social"],
         summary="Unfollow a user",
-        description="Unfollow a user you are currently following",
+        description="Stop following a user. Their updates will no longer appear in your feed. Idempotent - unfollowing a user you don't follow returns success.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='User ID to unfollow',
-                required=True
+                required=True,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'data': {
-                        'type': 'object',
-                        'properties': {
-                            'unfollowed': {'type': 'boolean'}
+                'examples': {
+                    'success': {
+                        'summary': 'Successfully unfollowed',
+                        'value': {
+                            'success': True,
+                            'message': 'User unfollowed successfully',
+                            'data': {
+                                'unfollowed': True
+                            }
+                        }
+                    },
+                    'not_following': {
+                        'summary': 'Not following this user (idempotent)',
+                        'value': {
+                            'success': False,
+                            'message': 'Not following this user'
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
-                }
-            },
-            404: {
-                'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'examples': {
+                    'unfollow_self': {
+                        'summary': 'Cannot unfollow yourself',
+                        'value': {
+                            'success': False,
+                            'message': 'You cannot unfollow yourself'
+                        }
+                    }
                 }
             }
         }
@@ -1032,31 +1233,68 @@ class FollowersView(APIView):
     @extend_schema(
         tags=["Social"],
         summary="Get followers",
-        description="Get list of users who follow the specified user (or authenticated user if not specified)",
+        description="Get list of users who follow the specified user. If no user_id is provided, returns followers of the authenticated user. Results are ordered by most recent followers first.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='User ID to get followers for (optional, defaults to authenticated user)',
-                required=False
+                required=False,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 42 followers'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'user_id': {'type': 'integer'},
+                            'user_id': {
+                                'type': 'integer',
+                                'description': 'User ID whose followers were retrieved',
+                                'example': 123
+                            },
                             'followers': {
                                 'type': 'array',
-                                'items': UserFollowSerializer
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'follower_id': {
+                                            'type': 'integer',
+                                            'description': 'User ID who is following',
+                                            'example': 456
+                                        },
+                                        'following_id': {
+                                            'type': 'integer',
+                                            'description': 'User ID being followed',
+                                            'example': 123
+                                        },
+                                        'created_at': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'description': 'When the follow relationship was created',
+                                            'example': '2026-04-07T16:30:00Z'
+                                        }
+                                    }
+                                },
+                                'description': 'List of followers, most recent first'
                             },
-                            'count': {'type': 'integer'}
+                            'count': {
+                                'type': 'integer',
+                                'description': 'Total number of followers',
+                                'example': 42
+                            }
                         }
                     }
                 }
@@ -1093,31 +1331,67 @@ class FollowingView(APIView):
     @extend_schema(
         tags=["Social"],
         summary="Get following",
-        description="Get list of users that the specified user follows (or authenticated user if not specified)",
+        description="Get list of users that the specified user follows. If no user_id provided, returns who the authenticated user follows. Results ordered by most recent follows first.",
         parameters=[
             OpenApiParameter(
                 name='user_id',
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.PATH,
                 description='User ID to get following for (optional, defaults to authenticated user)',
-                required=False
+                required=False,
+                example=123
             )
         ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Retrieved 28 following'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'user_id': {'type': 'integer'},
+                            'user_id': {
+                                'type': 'integer',
+                                'description': 'User ID whose following list was retrieved',
+                                'example': 123
+                            },
                             'following': {
                                 'type': 'array',
-                                'items': UserFollowSerializer
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'id': {'type': 'integer', 'example': 1},
+                                        'follower_id': {
+                                            'type': 'integer',
+                                            'description': 'User ID who is following',
+                                            'example': 123
+                                        },
+                                        'following_id': {
+                                            'type': 'integer',
+                                            'description': 'User ID being followed',
+                                            'example': 789
+                                        },
+                                        'created_at': {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'example': '2026-04-07T16:30:00Z'
+                                        }
+                                    }
+                                },
+                                'description': 'List of users being followed, most recent first'
                             },
-                            'count': {'type': 'integer'}
+                            'count': {
+                                'type': 'integer',
+                                'description': 'Total number of following',
+                                'example': 28
+                            }
                         }
                     }
                 }
@@ -1154,35 +1428,88 @@ class ChangePasswordView(APIView):
     @extend_schema(
         tags=["Authentication"],
         summary="Change password",
-        description="Change the authenticated user's password. Requires current password for verification.",
-        request=ChangePasswordSerializer,
+        description="Change the authenticated user's password. Requires current password for security. New password must be different from current password. Minimum 8 characters recommended.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'current_password': {
+                        'type': 'string',
+                        'format': 'password',
+                        'description': 'Current password for verification',
+                        'example': 'OldPass123!'
+                    },
+                    'new_password': {
+                        'type': 'string',
+                        'format': 'password',
+                        'description': 'New password (minimum 8 characters)',
+                        'minLength': 8,
+                        'example': 'NewSecurePass456!'
+                    }
+                },
+                'required': ['current_password', 'new_password']
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Change password',
+                description='Change password with current password verification',
+                value={
+                    'current_password': 'OldPass123!',
+                    'new_password': 'NewSecurePass456!'
+                }
+            )
+        ],
         responses={
             200: {
                 'type': 'object',
                 'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
+                    'success': {
+                        'type': 'boolean',
+                        'example': True
+                    },
+                    'message': {
+                        'type': 'string',
+                        'example': 'Password changed successfully'
+                    },
                     'data': {
                         'type': 'object',
                         'properties': {
-                            'success': {'type': 'boolean'}
+                            'success': {
+                                'type': 'boolean',
+                                'example': True
+                            }
                         }
                     }
                 }
             },
             400: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'},
-                    'errors': {'type': 'object'}
+                'examples': {
+                    'validation_error': {
+                        'summary': 'Validation failed',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid password data',
+                            'errors': {
+                                'new_password': ['This password is too short. It must contain at least 8 characters.']
+                            }
+                        }
+                    },
+                    'same_password': {
+                        'summary': 'New password same as current',
+                        'value': {
+                            'success': False,
+                            'message': 'New password must be different from current password'
+                        }
+                    }
                 }
             },
             401: {
                 'type': 'object',
-                'properties': {
-                    'success': {'type': 'boolean'},
-                    'message': {'type': 'string'}
+                'example': {
+                    'success': False,
+                    'message': 'Current password is incorrect'
                 }
             }
         }
