@@ -105,7 +105,22 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         - include_followed: true (default: excluded)
         - filter: followed|liked (special filters)
         """
-        # Get playlists owned by user OR playlists where user is a collaborator
+        # Special filters - handle BEFORE base queryset to avoid restricting results
+        filter_type = self.request.query_params.get('filter')
+        if filter_type == 'followed':
+            # Get ALL playlists the user follows, not just owned/collaborated ones
+            followed_playlist_ids = UserPlaylistFollow.objects.filter(
+                user_id=self.request.user.id
+            ).values_list('playlist_id', flat=True)
+            return Playlist.objects.filter(id__in=followed_playlist_ids)
+        elif filter_type == 'liked':
+            # Get ALL playlists the user likes, not just owned/collaborated ones
+            liked_playlist_ids = UserPlaylistLike.objects.filter(
+                user_id=self.request.user.id
+            ).values_list('playlist_id', flat=True)
+            return Playlist.objects.filter(id__in=liked_playlist_ids)
+
+        # Default behavior: Get playlists owned by user OR playlists where user is a collaborator
         owned_playlists = Playlist.objects.filter(owner_id=self.request.user.id)
 
         # Get collaborative playlists via service call
@@ -164,21 +179,6 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('include_archived') != 'true':
             qs = qs.exclude(archived_by__user_id=self.request.user.id)
 
-        # Special filters
-        filter_type = self.request.query_params.get('filter')
-        if filter_type == 'followed':
-            # Filter to playlists followed by the user
-            followed_playlist_ids = UserPlaylistFollow.objects.filter(
-                user_id=self.request.user.id
-            ).values_list('playlist_id', flat=True)
-            qs = qs.filter(id__in=followed_playlist_ids)
-        elif filter_type == 'liked':
-            # Filter to playlists liked by the user
-            liked_playlist_ids = UserPlaylistLike.objects.filter(
-                user_id=self.request.user.id
-            ).values_list('playlist_id', flat=True)
-            qs = qs.filter(id__in=liked_playlist_ids)
-
         # Sorting
         sort = self.request.query_params.get('sort', 'updated_at')
         order = self.request.query_params.get('order', 'desc')
@@ -224,8 +224,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         playlist = serializer.save(owner_id=self.request.user.id)
-        # Auto-follow for the owner so it appears in their profile/library
-        UserPlaylistFollow.objects.get_or_create(user_id=self.request.user.id, playlist=playlist)
+        return playlist
 
     def list(self, request, *args, **kwargs):
         """Override to wrap response in SuccessResponse format"""

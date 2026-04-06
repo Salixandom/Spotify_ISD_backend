@@ -19,6 +19,7 @@ class ShareLink(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(default=default_expires_at)
+    usage_count = models.IntegerField(default=0)
 
     class Meta:
         indexes = [

@@ -1,7 +1,7 @@
 {
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls -la Spotify_ISD_frontend/src/components/\",\"description\":\"List components directory\"}",
-  "error": "Exit code 2\n\"Spotify_ISD_frontend/src/components/\": No such file or directory (os error 2)",
-  "timestamp": "2026-04-03T22:20:40.903Z",
-  "retry_count": 1
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"/home/sakib/Projects/Spotify_ISD/Spotify_ISD_backend/Spotify_ISD_frontend/src/pages/PlaylistPage.tsx\",\"offset\":370,\"limit\":30}",
+  "error": "File does not exist. Note: your current working directory is /home/sakib/Projects/Spotify_ISD/Spotify_ISD_backend.",
+  "timestamp": "2026-04-06T09:58:04.374Z",
+  "retry_count": 2
 }
