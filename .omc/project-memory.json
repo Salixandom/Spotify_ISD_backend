@@ -113,6 +113,12 @@
       "type": "file"
     },
     {
+      "path": "render.yaml",
+      "accessCount": 5,
+      "lastAccessed": 1775511875874,
+      "type": "file"
+    },
+    {
       "path": "services/core/core/settings.py",
       "accessCount": 4,
       "lastAccessed": 1775113727701,
@@ -240,8 +246,8 @@
     },
     {
       "path": "docker-compose.yml",
-      "accessCount": 1,
-      "lastAccessed": 1775088951273,
+      "accessCount": 2,
+      "lastAccessed": 1775511727113,
       "type": "file"
     },
     {
@@ -333,6 +339,24 @@
       "accessCount": 1,
       "lastAccessed": 1775177188232,
       "type": "directory"
+    },
+    {
+      "path": "CONFIGURATION_SUMMARY.md",
+      "accessCount": 1,
+      "lastAccessed": 1775511778679,
+      "type": "file"
+    },
+    {
+      "path": "render.yaml.template",
+      "accessCount": 1,
+      "lastAccessed": 1775511873441,
+      "type": "file"
+    },
+    {
+      "path": ".env.production.example",
+      "accessCount": 1,
+      "lastAccessed": 1775511878098,
+      "type": "file"
     }
   ],
   "userDirectives": []
