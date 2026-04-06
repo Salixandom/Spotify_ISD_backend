@@ -2862,6 +2862,118 @@ class SimilarPlaylistsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get similar playlists",
+        description="Finds playlists similar to the specified playlist based on genre overlap using Jaccard similarity coefficient. Returns public playlists that share genres with the given playlist, ranked by similarity score. Excludes the playlist itself and the user's own playlists. Ideal for 'more like this' discovery features and playlist exploration.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist to find similar playlists for',
+                required=True,
+                example=123
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Maximum number of similar playlists to return (default: 10)',
+                required=False,
+                example=10
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Find similar playlists',
+                description='Get playlists similar to the specified one',
+                value={'limit': 10}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'similar_found': {
+                        'summary': 'Similar playlists found',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 8 similar playlists',
+                            'data': {
+                                'playlist_id': 123,
+                                'playlist_genres': ['Rock', 'Pop'],
+                                'similar_playlists': [
+                                    {
+                                        'id': 201,
+                                        'name': 'Rock Mix',
+                                        'description': 'Similar genres',
+                                        'owner_id': 10,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 45,
+                                        'similarity_score': 0.75,
+                                        'shared_genres': ['Rock', 'Pop']
+                                    },
+                                    {
+                                        'id': 202,
+                                        'name': 'Pop Rock Hits',
+                                        'description': 'Great mix',
+                                        'owner_id': 15,
+                                        'visibility': 'public',
+                                        'playlist_type': 'solo',
+                                        'track_count': 60,
+                                        'similarity_score': 0.67,
+                                        'shared_genres': ['Rock']
+                                    }
+                                ],
+                                'total': 8
+                            }
+                        }
+                    },
+                    'no_genres': {
+                        'summary': 'Source playlist has no genre information',
+                        'value': {
+                            'success': True,
+                            'message': 'No genres found in this playlist',
+                            'data': {
+                                'playlist_id': 456,
+                                'playlist_genres': [],
+                                'similar_playlists': [],
+                                'total': 0
+                            }
+                        }
+                    },
+                    'no_similar': {
+                        'summary': 'No other playlists with matching genres',
+                        'value': {
+                            'success': True,
+                            'message': 'Found 0 similar playlists',
+                            'data': {
+                                'playlist_id': 789,
+                                'playlist_genres': ['Jazz'],
+                                'similar_playlists': [],
+                                'total': 0
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
+
     def get(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -2978,6 +3090,74 @@ class AutoGeneratedPlaylistsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get auto-generated playlist suggestions",
+        description="Returns suggestions for auto-generated playlists based on your listening history and preferences. Analyzes genres from your liked playlists to identify favorite genres, then suggests genre-based mixes. Also includes mood-based playlist suggestions (chill, workout, focus). These are suggestions that can be created via the POST endpoint.",
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'suggestions_found': {
+                        'summary': 'Auto-generated suggestions retrieved',
+                        'value': {
+                            'success': True,
+                            'message': 'Auto-generated playlist suggestions retrieved',
+                            'data': {
+                                'suggestions': [
+                                    {
+                                        'type': 'genre_based',
+                                        'name': 'Rock Mix',
+                                        'description': 'Auto-generated playlist based on Rock genre',
+                                        'estimated_track_count': 150,
+                                        'genre': 'Rock'
+                                    },
+                                    {
+                                        'type': 'genre_based',
+                                        'name': 'Pop Mix',
+                                        'description': 'Auto-generated playlist based on Pop genre',
+                                        'estimated_track_count': 200,
+                                        'genre': 'Pop'
+                                    },
+                                    {
+                                        'type': 'mood_based',
+                                        'name': 'Chill Vibes',
+                                        'description': 'Relaxing tracks for unwinding',
+                                        'mood': 'chill'
+                                    },
+                                    {
+                                        'type': 'mood_based',
+                                        'name': 'Workout Mix',
+                                        'description': 'High-energy tracks for workouts',
+                                        'mood': 'energetic'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'fallback_suggestions': {
+                        'summary': 'No liked playlists, using default genres',
+                        'value': {
+                            'success': True,
+                            'message': 'Auto-generated playlist suggestions retrieved',
+                            'data': {
+                                'suggestions': [
+                                    {
+                                        'type': 'genre_based',
+                                        'name': 'Pop Mix',
+                                        'description': 'Auto-generated playlist based on Pop genre',
+                                        'estimated_track_count': 180,
+                                        'genre': 'Pop'
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+
     def get(self, request):
         """Get auto-generated playlist suggestions"""
         # OPTIMIZATION: Fetch liked playlist IDs once and reuse
@@ -3038,6 +3218,131 @@ class AutoGeneratedPlaylistsView(APIView):
             message='Auto-generated playlist suggestions retrieved'
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Create auto-generated playlist",
+        description="Creates an auto-generated playlist based on specified criteria. Supports genre-based generation (picks top tracks from a genre), taste-based (your favorite genres), trending (popular tracks), new releases, or similar songs. The playlist is automatically populated with tracks and owned by you.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['generation_type'],
+                'properties': {
+                    'generation_type': {
+                        'type': 'string',
+                        'enum': ['genre', 'taste', 'trending', 'new_releases', 'similar_song'],
+                        'description': 'Type of auto-generation to perform',
+                        'example': 'genre'
+                    },
+                    'name': {
+                        'type': 'string',
+                        'description': 'Custom name for the playlist (optional, auto-generated if not provided)',
+                        'maxLength': 255,
+                        'example': 'My Rock Mix'
+                    },
+                    'track_limit': {
+                        'type': 'integer',
+                        'description': 'Maximum number of tracks to include (default: 20)',
+                        'minimum': 1,
+                        'maximum': 100,
+                        'example': 30
+                    },
+                    'genre': {
+                        'type': 'string',
+                        'description': 'Genre name (required for genre-based generation)',
+                        'example': 'Rock'
+                    },
+                    'mood': {
+                        'type': 'string',
+                        'enum': ['chill', 'energetic', 'focus', 'party', 'workout'],
+                        'description': 'Mood for mood-based generation (optional)',
+                        'example': 'energetic'
+                    },
+                    'song_id': {
+                        'type': 'integer',
+                        'description': 'Song ID for similar song generation (required for similar_song type)',
+                        'example': 456
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Genre-based playlist',
+                description='Create an auto-generated playlist from a specific genre',
+                value={
+                    'generation_type': 'genre',
+                    'genre': 'Rock',
+                    'track_limit': 30
+                }
+            ),
+            OpenApiExample(
+                'Taste-based playlist',
+                description='Create playlist based on your favorite genres',
+                value={
+                    'generation_type': 'taste',
+                    'name': 'My Mix',
+                    'track_limit': 50
+                }
+            ),
+            OpenApiExample(
+                'Trending playlist',
+                description='Create playlist from trending tracks',
+                value={
+                    'generation_type': 'trending',
+                    'track_limit': 20
+                }
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'examples': {
+                    'created_successfully': {
+                        'summary': 'Auto-generated playlist created',
+                        'value': {
+                            'success': True,
+                            'message': 'Auto-generated playlist created successfully',
+                            'data': {
+                                'id': 501,
+                                'name': 'Rock Mix',
+                                'description': 'Auto-generated from Rock genre',
+                                'owner_id': 1,
+                                'visibility': 'private',
+                                'playlist_type': 'solo',
+                                'track_count': 30,
+                                'is_system_generated': True
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_genre': {
+                        'summary': 'Genre required for genre-based generation',
+                        'value': {
+                            'success': False,
+                            'message': 'Genre is required for genre-based generation',
+                            'errors': {
+                                'genre': ['Genre is required for genre-based generation']
+                            }
+                        }
+                    },
+                    'missing_song_id': {
+                        'summary': 'Song ID required for similar song generation',
+                        'value': {
+                            'success': False,
+                            'message': 'Song ID is required for similar song generation',
+                            'errors': {
+                                'song_id': ['Song ID is required for similar song generation']
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request):
         """Create an auto-generated playlist"""
         generation_type = request.data.get('generation_type', 'genre')  # genre, taste, trending, new_releases, similar_song
@@ -3257,6 +3562,132 @@ class EnhancedBatchDeleteView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Enhanced batch delete playlists",
+        description="Advanced bulk deletion with detailed per-playlist results. Returns success/failure status for each playlist with specific failure reasons. Optionally creates snapshots before deletion for recovery. Only affects playlists owned by the authenticated user. Supports partial success - some playlists can fail while others succeed.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['playlist_ids'],
+                'properties': {
+                    'playlist_ids': {
+                        'type': 'array',
+                        'items': {'type': 'integer'},
+                        'description': 'List of playlist IDs to delete. Only playlists you own will be deleted.',
+                        'minItems': 1,
+                        'example': [123, 456, 789]
+                    },
+                    'create_snapshots': {
+                        'type': 'boolean',
+                        'description': 'Whether to create snapshots before deletion for potential recovery (default: false)',
+                        'default': False,
+                        'example': True
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Simple batch delete',
+                description='Delete multiple playlists without snapshots',
+                value={'playlist_ids': [123, 456]}
+            ),
+            OpenApiExample(
+                'Delete with snapshots',
+                description='Delete playlists with backup snapshots',
+                value={
+                    'playlist_ids': [123, 456, 789],
+                    'create_snapshots': True
+                }
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'all_deleted': {
+                        'summary': 'All playlists deleted successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Snapshot batch delete completed: 3 deleted',
+                            'data': {
+                                'total': 3,
+                                'deleted': 3,
+                                'failed': 0,
+                                'results': [
+                                    {
+                                        'playlist_id': 123,
+                                        'status': 'deleted',
+                                        'name': 'Old Playlist'
+                                    },
+                                    {
+                                        'playlist_id': 456,
+                                        'status': 'deleted',
+                                        'name': 'Another Playlist'
+                                    },
+                                    {
+                                        'playlist_id': 789,
+                                        'status': 'deleted',
+                                        'name': 'Third Playlist'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'partial_success': {
+                        'summary': 'Some deleted, some failed',
+                        'value': {
+                            'success': True,
+                            'message': 'Snapshot batch delete completed: 2 deleted',
+                            'data': {
+                                'total': 4,
+                                'deleted': 2,
+                                'failed': 2,
+                                'results': [
+                                    {
+                                        'playlist_id': 123,
+                                        'status': 'deleted',
+                                        'name': 'My Playlist'
+                                    },
+                                    {
+                                        'playlist_id': 456,
+                                        'status': 'failed',
+                                        'reason': 'not_authorized'
+                                    },
+                                    {
+                                        'playlist_id': 789,
+                                        'status': 'failed',
+                                        'reason': 'not_found'
+                                    },
+                                    {
+                                        'playlist_id': 999,
+                                        'status': 'failed',
+                                        'reason': 'not_authorized'
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_playlist_ids': {
+                        'summary': 'playlist_ids field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'playlist_ids is required',
+                            'errors': {
+                                'playlist_ids': ['This field is required.']
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
     def delete(self, request):
         playlist_ids = request.data.get('playlist_ids', [])
 
@@ -3343,6 +3774,120 @@ class PlaylistExportView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Export playlist",
+        description="Exports a playlist to JSON format including all metadata, tracks, and song details. The exported data includes playlist information, all tracks with positions, and complete song details (artist, album, genre, duration). This can be used for backups, data portability, or sharing playlist configurations. Only the playlist owner can export their playlists.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist to export',
+                required=True,
+                example=123
+            ),
+            OpenApiParameter(
+                name='format',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Export format (currently only JSON is supported)',
+                required=False,
+                enum=['json'],
+                example='json'
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Export playlist',
+                description='Export playlist data to JSON',
+                value={'format': 'json'}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'application/json',
+                'examples': {
+                    'export_success': {
+                        'summary': 'Playlist exported successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist exported successfully',
+                            'data': {
+                                'playlist': {
+                                    'id': 123,
+                                    'name': 'My Awesome Playlist',
+                                    'description': 'My favorite songs',
+                                    'owner_id': 1,
+                                    'visibility': 'public',
+                                    'playlist_type': 'solo',
+                                    'cover_url': 'https://example.com/cover.jpg',
+                                    'created_at': '2026-03-01T10:00:00Z',
+                                    'updated_at': '2026-04-07T15:30:00Z'
+                                },
+                                'tracks': [
+                                    {
+                                        'id': 1001,
+                                        'position': 0,
+                                        'song': {
+                                            'id': 501,
+                                            'title': 'Bohemian Rhapsody',
+                                            'artist': 'Queen',
+                                            'album': 'A Night at the Opera',
+                                            'genre': 'Rock',
+                                            'duration_seconds': 354,
+                                            'release_year': 1975
+                                        },
+                                        'added_at': '2026-03-01T10:05:00Z'
+                                    },
+                                    {
+                                        'id': 1002,
+                                        'position': 1,
+                                        'song': {
+                                            'id': 502,
+                                            'title': 'Stairway to Heaven',
+                                            'artist': 'Led Zeppelin',
+                                            'album': 'Led Zeppelin IV',
+                                            'genre': 'Rock',
+                                            'duration_seconds': 482,
+                                            'release_year': 1971
+                                        },
+                                        'added_at': '2026-03-01T10:05:30Z'
+                                    }
+                                ],
+                                'exported_at': '2026-04-07T18:00:00Z',
+                                'total_tracks': 2
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the owner can export playlists',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to export this playlist'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3424,6 +3969,156 @@ class PlaylistImportView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Import playlist",
+        description="Imports a playlist from previously exported JSON data. Creates a new playlist owned by you with the same metadata and tracks. Validates all data integrity and creates track relationships. Songs are matched by ID if available, or by title and artist. Use this to restore backups, duplicate playlists across accounts, or share playlist configurations. The imported playlist is always created as private.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['playlist'],
+                'properties': {
+                    'playlist': {
+                        'type': 'object',
+                        'description': 'Playlist export data from the export endpoint',
+                        'properties': {
+                            'name': {
+                                'type': 'string',
+                                'description': 'Playlist name from export',
+                                'example': 'My Awesome Playlist'
+                            },
+                            'description': {
+                                'type': 'string',
+                                'description': 'Playlist description',
+                                'example': 'My favorite songs'
+                            },
+                            'visibility': {
+                                'type': 'string',
+                                'enum': ['public', 'private'],
+                                'example': 'private'
+                            },
+                            'playlist_type': {
+                                'type': 'string',
+                                'enum': ['solo', 'collaborative'],
+                                'example': 'solo'
+                            },
+                            'cover_url': {
+                                'type': 'string',
+                                'description': 'Cover image URL',
+                                'example': 'https://example.com/cover.jpg'
+                            },
+                            'tracks': {
+                                'type': 'array',
+                                'description': 'List of tracks with song details',
+                                'items': {
+                                    'type': 'object',
+                                    'properties': {
+                                        'position': {'type': 'integer'},
+                                        'song': {
+                                            'type': 'object',
+                                            'properties': {
+                                                'id': {'type': 'integer'},
+                                                'title': {'type': 'string'},
+                                                'artist': {'type': 'string'},
+                                                'album': {'type': 'string'},
+                                                'genre': {'type': 'string'}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    'name': {
+                        'type': 'string',
+                        'description': 'Custom name for the imported playlist (overrides export name)',
+                        'maxLength': 255
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Import playlist',
+                description='Import a playlist from exported JSON data',
+                value={
+                    'playlist': {
+                        'name': 'Imported Playlist',
+                        'description': 'Imported from backup',
+                        'visibility': 'private',
+                        'tracks': [
+                            {
+                                'position': 0,
+                                'song': {
+                                    'id': 501,
+                                    'title': 'Song Title',
+                                    'artist': 'Artist Name'
+                                }
+                            }
+                        ]
+                    }
+                }
+            ),
+            OpenApiExample(
+                'Import with custom name',
+                description='Import with a custom name',
+                value={
+                    'playlist': {
+                        'name': 'Original Name',
+                        'tracks': []
+                    },
+                    'name': 'My Custom Name'
+                }
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'examples': {
+                    'import_success': {
+                        'summary': 'Playlist imported successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist imported successfully',
+                            'data': {
+                                'id': 601,
+                                'name': 'My Awesome Playlist',
+                                'description': 'Imported from backup',
+                                'owner_id': 1,
+                                'visibility': 'private',
+                                'playlist_type': 'solo',
+                                'track_count': 25,
+                                'imported_tracks': 25,
+                                'skipped_tracks': 0
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'missing_playlist': {
+                        'summary': 'playlist field not provided',
+                        'value': {
+                            'success': False,
+                            'message': 'playlist data is required',
+                            'errors': {
+                                'playlist': ['This field is required.']
+                            }
+                        }
+                    },
+                    'invalid_visibility': {
+                        'summary': 'Invalid visibility value',
+                        'value': {
+                            'success': False,
+                            'message': 'Invalid visibility value'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request):
         import_data = request.data.get('playlist')
 
@@ -3543,6 +4238,105 @@ class PlaylistSnapshotView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="List playlist snapshots",
+        description="Returns all version snapshots for a playlist in reverse chronological order (newest first). Snapshots are point-in-time backups of playlist state including metadata and track list. Only the playlist owner can view snapshots. Useful for version history, audit trails, and recovery options.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist',
+                required=True,
+                example=123
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Maximum number of snapshots to return (default: 20)',
+                required=False,
+                example=20
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'snapshots_found': {
+                        'summary': 'Snapshots retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 5 snapshots',
+                            'data': {
+                                'playlist_id': 123,
+                                'total': 5,
+                                'snapshots': [
+                                    {
+                                        'id': 1001,
+                                        'snapshot_data': {
+                                            'name': 'My Playlist',
+                                            'track_count': 25
+                                        },
+                                        'change_reason': 'Manual snapshot',
+                                        'track_count': 25,
+                                        'created_at': '2026-04-07T18:00:00Z'
+                                    },
+                                    {
+                                        'id': 1002,
+                                        'snapshot_data': {
+                                            'name': 'My Playlist',
+                                            'track_count': 20
+                                        },
+                                        'change_reason': 'Before major reordering',
+                                        'track_count': 20,
+                                        'created_at': '2026-04-06T15:30:00Z'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'no_snapshots': {
+                        'summary': 'No snapshots exist for this playlist',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 0 snapshots',
+                            'data': {
+                                'playlist_id': 123,
+                                'total': 0,
+                                'snapshots': []
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the owner can view snapshots',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3566,6 +4360,90 @@ class PlaylistSnapshotView(APIView):
             message=f'Retrieved {snapshots.count()} snapshots'
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Create playlist snapshot",
+        description="Creates a manual snapshot of the current playlist state. Snapshots capture all playlist metadata and track information at a point in time. Useful for creating restore points before major changes, preserving important versions, or maintaining version history. Only the playlist owner can create snapshots.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist to snapshot',
+                required=True,
+                example=123
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'change_reason': {
+                        'type': 'string',
+                        'description': 'Reason for creating the snapshot (e.g., "Before reordering tracks", "Important version")',
+                        'maxLength': 255,
+                        'example': 'Before major reorganization'
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Create snapshot',
+                description='Create a manual snapshot with reason',
+                value={'change_reason': 'Before removing tracks'}
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'examples': {
+                    'snapshot_created': {
+                        'summary': 'Snapshot created successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Snapshot created successfully',
+                            'data': {
+                                'id': 1003,
+                                'snapshot_data': {
+                                    'name': 'My Playlist',
+                                    'description': 'My favorite songs',
+                                    'track_count': 25
+                                },
+                                'change_reason': 'Before major reorganization',
+                                'track_count': 25,
+                                'created_at': '2026-04-07T18:30:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the owner can create snapshots',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3596,6 +4474,100 @@ class PlaylistSnapshotView(APIView):
             status_code=201
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Delete old playlist snapshots",
+        description="Deletes old snapshots for a playlist, keeping only the N most recent ones. Useful for cleanup and storage management. Only the playlist owner can delete snapshots. Oldest snapshots are deleted first. This operation cannot be undone - deleted snapshots are permanently removed.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist',
+                required=True,
+                example=123
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'keep': {
+                        'type': 'integer',
+                        'description': 'Number of most recent snapshots to keep (default: 10)',
+                        'minimum': 1,
+                        'example': 10
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Keep last 10',
+                description='Delete all but the 10 most recent snapshots',
+                value={'keep': 10}
+            ),
+            OpenApiExample(
+                'Keep last 5',
+                description='Delete all but the 5 most recent snapshots',
+                value={'keep': 5}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'snapshots_deleted': {
+                        'summary': 'Old snapshots deleted successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Deleted 15 old snapshots',
+                            'data': {
+                                'kept': 10,
+                                'deleted': 15
+                            }
+                        }
+                    },
+                    'none_deleted': {
+                        'summary': 'No snapshots to delete (already within limit)',
+                        'value': {
+                            'success': True,
+                            'message': 'No snapshots to delete',
+                            'data': {
+                                'total_snapshots': 5,
+                                'kept': 10,
+                                'deleted': 0
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the owner can delete snapshots',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def delete(self, request, playlist_id):
         """Delete old snapshots, keep only N most recent"""
         try:
@@ -3640,6 +4612,104 @@ class PlaylistRestoreView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Restore playlist from snapshot",
+        description="Restores a playlist to a previous state from a snapshot. Replaces all playlist metadata and tracks with the snapshot data. The current state is lost unless you have a snapshot of it. Only the playlist owner can restore from snapshots. This is useful for undoing major changes, reverting to previous versions, or recovering from mistakes.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist to restore',
+                required=True,
+                example=123
+            ),
+            OpenApiParameter(
+                name='snapshot_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the snapshot to restore from',
+                required=True,
+                example=1001
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                'Restore from snapshot',
+                description='Restore playlist to a previous snapshot state',
+                value={}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'restored_successfully': {
+                        'summary': 'Playlist restored from snapshot',
+                        'value': {
+                            'success': True,
+                            'message': 'Playlist restored successfully',
+                            'data': {
+                                'id': 123,
+                                'name': 'My Playlist',
+                                'description': 'Restored from snapshot',
+                                'owner_id': 1,
+                                'visibility': 'public',
+                                'playlist_type': 'solo',
+                                'track_count': 25,
+                                'restored_from_snapshot': 1001,
+                                'restored_at': '2026-04-07T18:45:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'snapshot_not_found': {
+                        'summary': 'Snapshot does not exist for this playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Snapshot not found'
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the owner can restore snapshots',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    },
+                    'snapshot_not_found': {
+                        'summary': 'Snapshot ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Snapshot not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id, snapshot_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3728,6 +4798,109 @@ class PlaylistCommentsView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="List playlist comments",
+        description="Returns all top-level comments for a playlist in threaded format. Shows replies count for each comment and supports pagination. Comments are sorted by most recent first. Only shows comments on public playlists or your own playlists. Deleted comments are filtered out. Use this endpoint for comment sections and discussion threads.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist',
+                required=True,
+                example=123
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Maximum number of comments to return (default: 20)',
+                required=False,
+                example=20
+            ),
+            OpenApiParameter(
+                name='offset',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of comments to skip for pagination (default: 0)',
+                required=False,
+                example=0
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'comments_found': {
+                        'summary': 'Comments retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 5 comments',
+                            'data': {
+                                'playlist_id': 123,
+                                'total': 5,
+                                'limit': 20,
+                                'offset': 0,
+                                'comments': [
+                                    {
+                                        'id': 5001,
+                                        'content': 'Great playlist! Love the song selection.',
+                                        'user_id': 10,
+                                        'username': 'musicfan123',
+                                        'parent_id': None,
+                                        'replies_count': 2,
+                                        'likes_count': 5,
+                                        'is_liked': False,
+                                        'created_at': '2026-04-07T14:30:00Z',
+                                        'updated_at': '2026-04-07T14:30:00Z'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'no_comments': {
+                        'summary': 'No comments on this playlist',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 0 comments',
+                            'data': {
+                                'playlist_id': 123,
+                                'total': 0,
+                                'limit': 20,
+                                'offset': 0,
+                                'comments': []
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Cannot view comments on private playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to view comments on this playlist'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist ID does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3770,6 +4943,138 @@ class PlaylistCommentsView(APIView):
             message=f'Retrieved {len(serializer.data)} comments'
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Create playlist comment",
+        description="Posts a new comment on a playlist. Can be a top-level comment or a reply to an existing comment. Replies support up to 2 levels of nesting (comment → reply → reply to reply). Comments are permanently associated with the playlist and cannot be moved. The authenticated user automatically becomes the comment author. Only public playlists or your own playlists can be commented on.",
+        parameters=[
+            OpenApiParameter(
+                name='playlist_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the playlist to comment on',
+                required=True,
+                example=123
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['content'],
+                'properties': {
+                    'content': {
+                        'type': 'string',
+                        'description': 'Comment text content (cannot be empty or whitespace only)',
+                        'minLength': 1,
+                        'maxLength': 2000,
+                        'example': 'This playlist is amazing! Great song selection.'
+                    },
+                    'parent_id': {
+                        'type': 'integer',
+                        'description': 'Parent comment ID if this is a reply (optional)',
+                        'example': 5001
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Top-level comment',
+                description='Post a new comment on the playlist',
+                value={'content': 'Great playlist! Thanks for sharing.'}
+            ),
+            OpenApiExample(
+                'Reply to comment',
+                description='Post a reply to an existing comment',
+                value={
+                    'content': 'I agree! The flow is perfect.',
+                    'parent_id': 5001
+                }
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'examples': {
+                    'comment_created': {
+                        'summary': 'Comment posted successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment created successfully',
+                            'data': {
+                                'id': 5002,
+                                'content': 'Great playlist! Thanks for sharing.',
+                                'user_id': 10,
+                                'username': 'musicfan123',
+                                'parent_id': None,
+                                'replies_count': 0,
+                                'likes_count': 0,
+                                'is_liked': False,
+                                'created_at': '2026-04-07T18:50:00Z',
+                                'updated_at': '2026-04-07T18:50:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'empty_content': {
+                        'summary': 'Content is empty or whitespace',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment content is required',
+                            'errors': {
+                                'content': ['This field is required and cannot be empty']
+                            }
+                        }
+                    },
+                    'max_reply_level': {
+                        'summary': 'Cannot reply to a reply (max 2 levels)',
+                        'value': {
+                            'success': False,
+                            'message': 'Cannot reply to a reply',
+                            'errors': {
+                                'parent_id': ['Cannot reply to a reply (max 2 levels)']
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Cannot comment on private playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to comment on this playlist'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'playlist_not_found': {
+                        'summary': 'Playlist does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Playlist not found'
+                        }
+                    },
+                    'parent_not_found': {
+                        'summary': 'Parent comment does not exist',
+                        'value': {
+                            'success': False,
+                            'message': 'Parent comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request, playlist_id):
         try:
             playlist = Playlist.objects.get(id=playlist_id)
@@ -3846,6 +5151,80 @@ class CommentDetailView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get comment details",
+        description="Returns detailed information about a specific comment including the comment content, author information, likes count, edit status, and all replies. Comments are only accessible if you can access the associated playlist. Deleted comments return 404.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the comment',
+                required=True,
+                example=5001
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'comment_found': {
+                        'summary': 'Comment retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment retrieved successfully',
+                            'data': {
+                                'id': 5001,
+                                'content': 'This playlist is amazing!',
+                                'user_id': 10,
+                                'username': 'musicfan123',
+                                'parent_id': None,
+                                'replies_count': 2,
+                                'likes_count': 5,
+                                'is_liked': False,
+                                'is_edited': False,
+                                'created_at': '2026-04-07T14:30:00Z',
+                                'updated_at': '2026-04-07T14:30:00Z',
+                                'replies': [
+                                    {
+                                        'id': 5002,
+                                        'content': 'I agree!',
+                                        'user_id': 15,
+                                        'likes_count': 3
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Cannot access comment (playlist is private)',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to view this comment'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment does not exist or was deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, comment_id):
         try:
             comment = PlaylistComment.objects.get(
@@ -3873,6 +5252,103 @@ class CommentDetailView(APIView):
             message='Comment retrieved successfully'
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Update comment",
+        description="Updates the content of an existing comment. Only the comment author can edit their own comments. The comment is permanently marked as edited (is_edited flag) and the update timestamp is refreshed. Original content is not preserved. Only the content field can be modified - parent_id and other fields cannot be changed.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the comment to update',
+                required=True,
+                example=5001
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'required': ['content'],
+                'properties': {
+                    'content': {
+                        'type': 'string',
+                        'description': 'New comment content (replaces existing content)',
+                        'minLength': 1,
+                        'maxLength': 2000,
+                        'example': 'Updated comment text with corrections.'
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Edit comment',
+                description='Update an existing comment',
+                value={'content': 'Revised my thoughts on this playlist.'}
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'updated': {
+                        'summary': 'Comment updated successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment updated successfully',
+                            'data': {
+                                'id': 5001,
+                                'content': 'Revised my thoughts on this playlist.',
+                                'user_id': 10,
+                                'is_edited': True,
+                                'updated_at': '2026-04-07T19:00:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'empty_content': {
+                        'summary': 'Content is empty or whitespace',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment content is required',
+                            'errors': {
+                                'content': ['This field is required and cannot be empty']
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the comment author can edit',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to edit this comment'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment does not exist or was deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def patch(self, request, comment_id):
         try:
             comment = PlaylistComment.objects.get(
@@ -3913,6 +5389,59 @@ class CommentDetailView(APIView):
             message='Comment updated successfully'
         )
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Delete comment",
+        description="Soft deletes a comment by marking it as deleted. The comment content remains in the database but is filtered out from views. Only the comment author can delete their own comments. This operation is irreversible - comments cannot be undeleted. Replies to the deleted comment remain visible. The comment ID is preserved for referential integrity.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the comment to delete',
+                required=True,
+                example=5001
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'deleted_successfully': {
+                        'summary': 'Comment soft deleted successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment deleted successfully'
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Only the comment author can delete',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to delete this comment'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment does not exist or was already deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def delete(self, request, comment_id):
         try:
             comment = PlaylistComment.objects.get(
@@ -3950,6 +5479,95 @@ class CommentRepliesView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Playlists"],
+        summary="Get comment replies",
+        description="Returns all direct replies to a specific comment. Only shows one level of nesting (direct replies to the parent, not replies to replies). Replies are sorted by most recent first. Only accessible if you can view the associated playlist. This endpoint is useful for expanding comment threads and showing conversation history.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the parent comment',
+                required=True,
+                example=5001
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'replies_found': {
+                        'summary': 'Replies retrieved successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 3 replies',
+                            'data': {
+                                'comment_id': 5001,
+                                'total': 3,
+                                'replies': [
+                                    {
+                                        'id': 5002,
+                                        'content': 'I agree with this!',
+                                        'user_id': 15,
+                                        'username': 'user15',
+                                        'parent_id': 5001,
+                                        'likes_count': 2,
+                                        'created_at': '2026-04-07T15:00:00Z'
+                                    },
+                                    {
+                                        'id': 5003,
+                                        'content': 'Same here!',
+                                        'user_id': 20,
+                                        'username': 'user20',
+                                        'parent_id': 5001,
+                                        'likes_count': 1,
+                                        'created_at': '2026-04-07T15:05:00Z'
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    'no_replies': {
+                        'summary': 'No replies to this comment',
+                        'value': {
+                            'success': True,
+                            'message': 'Retrieved 0 replies',
+                            'data': {
+                                'comment_id': 5001,
+                                'total': 0,
+                                'replies': []
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'Cannot access replies (playlist is private)',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to view replies'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment does not exist or was deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request, comment_id):
         try:
             parent_comment = PlaylistComment.objects.get(
@@ -4004,6 +5622,90 @@ class CommentLikeView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Like a comment",
+        description="Likes a comment on a playlist. This operation is idempotent - if the user has already liked the comment, the request will succeed without creating a duplicate like. Users cannot like their own comments. The comment's likes_count is incremented when a new like is created. Only users with access to the playlist (public playlists or authorized users) can like comments.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the comment to like',
+                required=True,
+                example=456
+            )
+        ],
+        responses={
+            201: {
+                'type': 'object',
+                'examples': {
+                    'comment_liked': {
+                        'summary': 'Comment liked successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment liked successfully',
+                            'data': {
+                                'id': 789,
+                                'comment_id': 456,
+                                'user_id': 1,
+                                'created_at': '2026-04-07T12:00:00Z'
+                            }
+                        }
+                    },
+                    'already_liked': {
+                        'summary': 'User already liked this comment (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Already liked this comment',
+                            'data': {
+                                'id': 789,
+                                'comment_id': 456,
+                                'user_id': 1,
+                                'created_at': '2026-04-07T11:00:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'type': 'object',
+                'examples': {
+                    'own_comment': {
+                        'summary': 'Cannot like own comment',
+                        'value': {
+                            'success': False,
+                            'message': 'Cannot like your own comment'
+                        }
+                    }
+                }
+            },
+            403: {
+                'type': 'object',
+                'examples': {
+                    'not_authorized': {
+                        'summary': 'No access to playlist',
+                        'value': {
+                            'success': False,
+                            'message': 'Not authorized to like comments on this playlist'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment ID does not exist or is deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request, comment_id):
         try:
             comment = PlaylistComment.objects.get(
@@ -4046,6 +5748,54 @@ class CommentLikeView(APIView):
             status_code=201 if created else 200
         )
 
+    @extend_schema(
+        tags=["Comments"],
+        summary="Unlike a comment",
+        description="Removes the user's like from a comment. This operation is idempotent - if the user was not liking the comment, the request will succeed without error. The comment's likes_count is decremented when a like is removed (never goes below 0). No authentication error is raised if the user was not liking the comment.",
+        parameters=[
+            OpenApiParameter(
+                name='comment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.PATH,
+                description='Unique identifier of the comment to unlike',
+                required=True,
+                example=456
+            )
+        ],
+        responses={
+            200: {
+                'type': 'object',
+                'examples': {
+                    'comment_unliked': {
+                        'summary': 'Comment unliked successfully',
+                        'value': {
+                            'success': True,
+                            'message': 'Comment unliked successfully'
+                        }
+                    },
+                    'not_liking': {
+                        'summary': 'User was not liking this comment (idempotent)',
+                        'value': {
+                            'success': True,
+                            'message': 'Not liking this comment'
+                        }
+                    }
+                }
+            },
+            404: {
+                'type': 'object',
+                'examples': {
+                    'comment_not_found': {
+                        'summary': 'Comment ID does not exist or is deleted',
+                        'value': {
+                            'success': False,
+                            'message': 'Comment not found'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def delete(self, request, comment_id):
         try:
             comment = PlaylistComment.objects.get(
